@@ -2,6 +2,7 @@
 const express = require('express')
 const fs = require('fs-extra')
 const https = require('node:https') // built in
+const crypto = require('node:crypto')
 
 let actionConfig = null
 
@@ -53,8 +54,6 @@ module.exports = async (bundler, options, log = () => {}, _actionConfig) => {
 
 const serveAction = async (req, res, next) => {
   const url = req.params[0]
-  console.log('url is', url)
-
   const [packageName, actionName, ...path] = url.split('/')
 
   console.log('packageName is ', packageName)
@@ -63,6 +62,7 @@ const serveAction = async (req, res, next) => {
   console.log('actionConfig[packageName] is', actionConfig[packageName])
 
   const action = actionConfig[packageName]?.actions[actionName]
+  console.log('action is conductor? ', action.annotations)
 
   if (!action) {
     // action could be a sequence ... todo: refactor these 2 paths to 1 action runner
@@ -91,6 +91,7 @@ const serveAction = async (req, res, next) => {
         const actionName = actions[i].trim()
         const action = actionConfig[packageName]?.actions[actionName]
         if (action) {
+          process.env.__OW_ACTIVATION_ID = crypto.randomBytes(16).toString('hex')
           delete require.cache[action.function]
           const actionFunction = require(action.function).main
           response = await actionFunction(response ?? params)
@@ -128,6 +129,7 @@ const serveAction = async (req, res, next) => {
   // action.include?
   // sequences, rules, triggers, ...
   // todo: bust require cache
+  process.env.__OW_ACTIVATION_ID = crypto.randomBytes(16).toString('hex')
   delete require.cache[action.function]
   const actionFunction = require(action.function).main
 
