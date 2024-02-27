@@ -81,8 +81,9 @@ async function runScript (command, dir, cmdArgs = []) {
  * @param {object} config object to write
  */
 function writeConfig (file, config) {
+  console.log('writing config to', file)
   fs.ensureDirSync(path.dirname(file))
-  fs.writeJSONSync(file, config, { encoding: 'utf-8' })
+  fs.writeJSONSync(file, config, { spaces: 2 })
 }
 
 module.exports = {
