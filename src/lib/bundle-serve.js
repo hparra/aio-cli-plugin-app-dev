@@ -7,9 +7,7 @@ const crypto = require('node:crypto')
 let actionConfig = null
 
 module.exports = async (bundler, options, log = () => {}, _actionConfig) => {
-  console.log('options are ', options)
   actionConfig = _actionConfig
-  console.log('serving front-end using bundler serve ... ', actionConfig)
 
   process.env.__OW_API_KEY = process.env.AIO_runtime_auth
   process.env.__OW_NAMESPACE = process.env.AIO_runtime_namespace
@@ -22,10 +20,18 @@ module.exports = async (bundler, options, log = () => {}, _actionConfig) => {
     cert: cert
   }
 
+  try {
+    let {bundleGraph, buildTime} = await bundler.run()
+    let bundles = bundleGraph.getBundles()
+    console.log(`✨ Built ${bundles.length} bundles in ${buildTime}ms!`)
+  } catch (err) {
+    console.log(err.diagnostics);
+  }
+
   const app = express()
   app.use(express.json())
   app.use(express.static('dist/dx-excshell-1/web-dev'))
-  // TODO: serveAction needs to clear cache for each request, so we get live changes
+  // DONE: serveAction needs to clear cache for each request, so we get live changes
   app.all('/api/v1/web/*', serveAction)
 
   const port = options.serveOptions.port || Number(process.env.PORT || 9000)
@@ -33,12 +39,7 @@ module.exports = async (bundler, options, log = () => {}, _actionConfig) => {
   server.listen(port, () => {
     console.log('server starting on port : ' + port)
   })
-  // const { unsubscribe } = await bundler.watch((err) => {
-  //   if (err) {
-  //     log(err)
-  //   }
-  // })
-  const url = `${options.serveOptions.https ? 'https:' : 'http:'}//localhost:${options.serveOptions.port}`
+  const url = `${options.serveOptions.https ? 'https:' : 'http:'}//localhost:${port}`
 
   const serverCleanup = async () => {
     aioLogger.debug('shutting down server ...')
@@ -126,9 +127,9 @@ const serveAction = async (req, res, next) => {
     }
   }
   // todo: what can we learn from action.annotations?
-  // action.include?
-  // sequences, rules, triggers, ...
-  // todo: bust require cache
+  // todo: action.include?
+  // todo: rules, triggers, ...
+  // generate an activationID just like openwhisk
   process.env.__OW_ACTIVATION_ID = crypto.randomBytes(16).toString('hex')
   delete require.cache[action.function]
   const actionFunction = require(action.function).main
