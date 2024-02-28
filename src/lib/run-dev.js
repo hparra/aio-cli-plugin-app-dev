@@ -71,6 +71,7 @@ async function runDev (config, dataDir, options = {}, log = () => {}, inprocHook
     console.log('withBackend is', withBackend)
     if (withBackend) {
       if (isLocal) {
+        // todo: remove this, this case should never happen
         console.log('using local actions')
         // devConfig = localConfig
         // cleanup.add(() => localCleanup(), 'cleaning up runDevLocal')
@@ -89,10 +90,15 @@ async function runDev (config, dataDir, options = {}, log = () => {}, inprocHook
         // inject backend urls into ui
         // note the condition: we still write backend urls EVEN if skipActions is set
         // the urls will always point to remotely deployed actions if skipActions is set
-        console.log('injecting backend urls into frontend config ', devConfig)
         // todo: these need to be localhost:9080....
         urls = rtLibUtils.getActionUrls(devConfig, true, isLocal && !skipActions, true)
-        console.log('urls is', urls)
+        urls = Object.entries(urls).reduce((acc, [key, value]) => {
+          let url = new URL(value)
+          url.port = uiPort
+          url.hostname = 'localhost'
+          acc[key] = url.toString()
+          return acc
+        }, {})
       }
       utils.writeConfig(devConfig.web.injectedConfig, urls)
 
@@ -122,7 +128,7 @@ async function runDev (config, dataDir, options = {}, log = () => {}, inprocHook
         const script = await utils.runScript(config.hooks['serve-static'])
         if (!script) {
           let result
-          // TODO: are we always using a default bundler?
+          // TODO: are we always using a default bundler? -jm
           if (defaultBundler) {
             console.log('serving defaultBundler')
             result = await bundleServe(defaultBundler, bundleOptions, log, actionConfig)
