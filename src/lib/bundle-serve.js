@@ -37,7 +37,7 @@ module.exports = async (bundler, options, log = () => {}, _actionConfig) => {
   const port = options.serveOptions.port || Number(process.env.PORT || 9000)
   const server = https.createServer(serverOptions, app)
   server.listen(port, () => {
-    console.log('server starting on port : ' + port)
+    console.log('server running on port : ' + port)
   })
   const url = `${options.serveOptions.https ? 'https:' : 'http:'}//localhost:${port}`
 

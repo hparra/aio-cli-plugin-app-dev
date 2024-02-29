@@ -195,7 +195,7 @@ class Dev extends BaseCommand {
   }
 }
 
-Dev.description = 'Dev tooling to run your App Builder app locally'
+Dev.description = '*Developer Preview* Run your App Builder app locally'
 
 Dev.args = {}
 

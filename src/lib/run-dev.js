@@ -37,10 +37,8 @@ async function runDev (config, dataDir, options = {}, log = () => {}, inprocHook
   // console.log('config actions is', actionConfig['dx-excshell-1'].actions)
 
   /* skip actions */
+  // todo: is this really an option? -jm
   const skipActions = !!options.skipActions
-
-  console.log('config.app.hasBackend is', config.app.hasBackend)
-  console.log('skipActions is', skipActions)
 
   // control variables
   const hasFrontend = config.app.hasFrontend
@@ -67,8 +65,6 @@ async function runDev (config, dataDir, options = {}, log = () => {}, inprocHook
 
   try {
     // Build Phase - actions
-
-    console.log('withBackend is', withBackend)
     if (withBackend) {
       if (isLocal) {
         // todo: remove this, this case should never happen
@@ -128,15 +124,14 @@ async function runDev (config, dataDir, options = {}, log = () => {}, inprocHook
         const script = await utils.runScript(config.hooks['serve-static'])
         if (!script) {
           let result
-          // TODO: are we always using a default bundler? -jm
+          // TODO: seems we are always using the default bundler
+          // is the other case possible? -jm
           if (defaultBundler) {
-            console.log('serving defaultBundler')
             result = await bundleServe(defaultBundler, bundleOptions, log, actionConfig)
           } else {
             console.log('else else else')
             // result = await serve(devConfig.web.distDev, uiPort, bundleOptions, log, actionConfig)
           }
-          console.log('resilt is ', result)
           const { url, cleanup: serverCleanup } = result
           frontEndUrl = url
           cleanup.add(() => serverCleanup(), 'cleaning up serve...')
