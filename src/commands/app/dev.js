@@ -25,6 +25,7 @@ const runDev = require('../../lib/run-dev')
 const SERVER_DEFAULT_PORT = 9080
 const { runInProcess } = require('../../lib/app-helper')
 
+const DEV_KEYS_DIR = 'dist/dev-keys/'
 const PRIVATE_KEY_PATH = 'dist/dev-keys/private.key'
 const PUB_CERT_PATH = 'dist/dev-keys/cert-pub.crt'
 const CONFIG_KEY = 'aio-dev.dev-keys'
