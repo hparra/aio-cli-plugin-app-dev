@@ -57,13 +57,13 @@ const serveAction = async (req, res, next) => {
   const url = req.params[0]
   const [packageName, actionName, ...path] = url.split('/')
 
-  console.log('packageName is ', packageName)
-  console.log('actionName is ', actionName)
-  console.log('path is ', path)
-  console.log('actionConfig[packageName] is', actionConfig[packageName])
+  // console.log('packageName is ', packageName)
+  // console.log('actionName is ', actionName)
+  // console.log('path is ', path)
+  // console.log('actionConfig[packageName] is', actionConfig[packageName])
 
   const action = actionConfig[packageName]?.actions[actionName]
-  console.log('action is conductor? ', action.annotations)
+  // console.log('action is conductor? ', action?.annotations)
 
   if (!action) {
     // action could be a sequence ... todo: refactor these 2 paths to 1 action runner
