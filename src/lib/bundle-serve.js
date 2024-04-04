@@ -25,7 +25,7 @@ module.exports = async (bundler, options, log = () => { }, _actionConfig) => {
     let bundles = bundleGraph.getBundles()
     console.log(`✨ Built ${bundles.length} bundles in ${buildTime}ms!`)
   } catch (err) {
-    console.log(err.diagnostics);
+    console.log(err.diagnostics)
   }
 
   const app = express()
@@ -42,7 +42,7 @@ module.exports = async (bundler, options, log = () => { }, _actionConfig) => {
   const url = `${options.serveOptions.https ? 'https:' : 'http:'}//localhost:${port}`
 
   const serverCleanup = async () => {
-    aioLogger.debug('shutting down server ...')
+    console.debug('shutting down server ...')
     await app.close()
     await server.close()
   }
@@ -125,7 +125,6 @@ const serveAction = async (req, res, next) => {
     process.env.__OW_ACTIVATION_ID = crypto.randomBytes(16).toString('hex')
     delete require.cache[action.function]
     const actionFunction = require(action.function).main
-    console.log('actionFunction is', actionFunction)
 
     const params = {
       __ow_body: req.body,
@@ -160,6 +159,5 @@ const serveAction = async (req, res, next) => {
         .status(500)
         .send({ error: `${actionName} action not found, or does not export main` })
     }
-
   }
 }
