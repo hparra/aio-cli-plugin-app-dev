@@ -14,11 +14,11 @@ const chalk = require('chalk')
 const coreConfig = require('@adobe/aio-lib-core-config')
 const DEFAULT_LAUNCH_PREFIX = 'https://experience.adobe.com/?devMode=true#/custom-apps/?localDevUrl='
 const STAGE_LAUNCH_PREFIX = 'https://experience-stage.adobe.com/?devMode=true#/custom-apps/?localDevUrl='
-const loadConfig = require('@adobe/aio-cli-lib-app-config')
+const configLoader = require('@adobe/aio-cli-lib-app-config')
 const APPLICATION_CONFIG_KEY = 'application'
 const EXTENSIONS_CONFIG_KEY = 'extensions'
 const inquirer = require('inquirer')
-const aioLogger = require('@adobe/aio-lib-core-logging')('@adobe/aio-cli-plugin-app', { provider: 'debug' })
+const aioLogger = require('@adobe/aio-lib-core-logging')('@adobe/aio-cli-plugin-app-dev', { provider: 'debug' })
 
 const {
   getCliEnv, /* function */
@@ -52,8 +52,9 @@ class BaseCommand extends Command {
     this.prompt = inquirer.createPromptModule({ output: process.stderr })
   }
 
-  getAppExtConfigs (flags, options = {}) {
-    const all = this.getFullConfig(options).all
+  async getAppExtConfigs (flags, options = {}) {
+    const fullConfig = await this.getFullConfig(options)
+    const all = fullConfig.all
 
     // default case: no flags, return all
     let ret = all
@@ -113,9 +114,9 @@ class BaseCommand extends Command {
     return configData || {}
   }
 
-  getFullConfig (options = {}) {
+  async getFullConfig (options = {}) {
     if (!this.appConfig) {
-      this.appConfig = loadConfig(options)
+      this.appConfig = await configLoader.load(options)
     }
     return this.appConfig
   }

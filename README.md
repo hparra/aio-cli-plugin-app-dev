@@ -1,9 +1,19 @@
 # aio-cli-plugin-app-dev
 
+[![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
+[![Version](https://img.shields.io/npm/v/@adobe/aio-cli-plugin-app-dev.svg)](https://npmjs.org/package/@adobe/aio-cli-plugin-app-dev)
+[![Downloads/week](https://img.shields.io/npm/dw/@adobe/aio-cli-plugin-app-dev.svg)](https://npmjs.org/package/@adobe/aio-cli-plugin-app-dev)
+![Node.js CI](https://github.com/adobe/aio-cli-plugin-app-dev/workflows/Node.js%20CI/badge.svg)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Codecov Coverage](https://img.shields.io/codecov/c/github/adobe/aio-cli-plugin-app-dev/master.svg?style=flat-square)](https://codecov.io/gh/adobe/aio-cli-plugin-app-dev/)
+
 This command is a new way of looking at local development.
 This uses the approach of a simulator, rather than an emulator.
 
+## Legacy Openwhisk Debugger
+
 The openwhisk debugger had some heavy requirements, and several serious issues that could not be resolved
+
 - requires Java to be installed on the developer's machine to run the jar
 - requires Docker desktop to be installed, up and running
 - does not function on all hardware combinations, ex. Apple silicon ...
@@ -23,18 +33,16 @@ The openwhisk debugger had some heavy requirements, and several serious issues t
 - the solution is complex with many moving parts, and many points of failure
 - it is slow, it takes time to setup and teardown
 
+### Gaps
 
-### Gaps:
 - When modifying code, and re-calling the action, the latest code is used because we clear node module cache entries, however, if your action code imports/requires another file, this cache is not cleared so changes are not reflected.
 - File Storage needs to use our cdn urls, and not AZURE_STORAGE_DOMAIN
-
 
 <!-- toc -->
 
 <!-- tocstop -->
 
-
-# Commands
+## Commands
 <!-- commands -->
 
 <!-- commandsstop -->

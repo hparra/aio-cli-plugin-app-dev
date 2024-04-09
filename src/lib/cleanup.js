@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 
 const execa = require('execa')
-const aioLogger = require('@adobe/aio-lib-core-logging')('@adobe/aio-cli-plugin-app:cleanup', { provider: 'debug' })
+const aioLogger = require('@adobe/aio-lib-core-logging')('@adobe/aio-cli-plugin-app-dev:cleanup', { provider: 'debug' })
 
 /** @private */
 class Cleanup {
