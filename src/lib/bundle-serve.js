@@ -6,7 +6,7 @@ const crypto = require('node:crypto')
 
 let actionConfig = null
 
-module.exports = async (bundler, options, log = () => {}, _actionConfig) => {
+module.exports = async (bundler, options, log = () => { }, _actionConfig) => {
   actionConfig = _actionConfig
 
   process.env.__OW_API_KEY = process.env.AIO_runtime_auth
@@ -21,8 +21,8 @@ module.exports = async (bundler, options, log = () => {}, _actionConfig) => {
   }
 
   try {
-    const { bundleGraph, buildTime } = await bundler.run()
-    const bundles = bundleGraph.getBundles()
+    let { bundleGraph, buildTime } = await bundler.run()
+    let bundles = bundleGraph.getBundles()
     console.log(`✨ Built ${bundles.length} bundles in ${buildTime}ms!`)
   } catch (err) {
     console.log(err.diagnostics)
@@ -56,23 +56,13 @@ module.exports = async (bundler, options, log = () => {}, _actionConfig) => {
 const serveAction = async (req, res, next) => {
   const url = req.params[0]
   const [packageName, actionName, ...path] = url.split('/')
-
-  // console.log('packageName is ', packageName)
-  // console.log('actionName is ', actionName)
-  // console.log('path is ', path)
-  // console.log('actionConfig[packageName] is', actionConfig[packageName])
-
   const action = actionConfig[packageName]?.actions[actionName]
-  // console.log('action is conductor? ', action?.annotations)
 
   if (!action) {
     // action could be a sequence ... todo: refactor these 2 paths to 1 action runner
     const sequence = actionConfig[packageName]?.sequences[actionName]
     if (sequence) {
-      console.log('sequence be ', sequence)
       const actions = sequence.actions?.split(',')
-      console.log('actions are', actions)
-
       const params = {
         __ow_body: req.body,
         __ow_headers: req.headers,
@@ -95,13 +85,18 @@ const serveAction = async (req, res, next) => {
           process.env.__OW_ACTIVATION_ID = crypto.randomBytes(16).toString('hex')
           delete require.cache[action.function]
           const actionFunction = require(action.function).main
-          response = await actionFunction(response ?? params)
-          if (response.statusCode === 404) {
-            throw response
+          if (actionFunction) {
+            response = await actionFunction(response ?? params)
+            if (response.statusCode === 404) {
+              throw response
+            }
+          } else {
+            return res
+              .status(500)
+              .send({ error: `${actionName} action not found, or does not export main` })
           }
         }
       }
-      console.log('response is', response)
       const headers = response.headers || {}
       const status = response.statusCode || 200
       return res
@@ -114,12 +109,10 @@ const serveAction = async (req, res, next) => {
         .send({ error: 'not found (yet)' })
     }
   } else {
-  // check if action is protected
+    // check if action is protected
     if (action?.annotations?.['require-adobe-auth']) {
-      console.log('require-adobe-auth is true')
       // check if user is authenticated
       if (!req.headers.authorization) {
-        console.log('no authorization header')
         return res
           .status(401)
           .send({ error: 'unauthorized' })
@@ -149,7 +142,6 @@ const serveAction = async (req, res, next) => {
     if (actionFunction) {
       try {
         const response = await actionFunction(params)
-        console.log('response is', response)
         const headers = response.headers || {}
         const status = response.statusCode || 200
 
@@ -163,8 +155,9 @@ const serveAction = async (req, res, next) => {
           .send({ error: e.message })
       }
     } else {
-      console.log('no action function, or does not export main: ', action.function)
+      return res
+        .status(500)
+        .send({ error: `${actionName} action not found, or does not export main` })
     }
-    res.send(action)
   }
 }
