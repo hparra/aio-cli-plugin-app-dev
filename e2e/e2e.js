@@ -14,7 +14,10 @@ const chalk = require('chalk')
 const { stdout } = require('stdout-stderr')
 const fs = require('fs')
 
-stdout.print = true
+beforeEach(() => {
+  stdout.start()
+  stdout.print = true
+})
 
 test('boilerplate help test', async () => {
   const packagejson = JSON.parse(fs.readFileSync('package.json').toString())

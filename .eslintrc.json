@@ -1,15 +1,22 @@
 {
-    "env": {
-        "commonjs": true,
-        "es2021": true,
-        "node": true
-    },
-    "extends": [
-        "standard"
-    ],
+    "extends": "@adobe/eslint-config-aio-lib-config",
     "parserOptions": {
-        "ecmaVersion": 12
+        "ecmaVersion": "latest"
     },
     "rules": {
+        "node/no-unpublished-require": 0,
+        "jsdoc/tag-lines": [
+            // The Error level should be `error`, `warn`, or `off` (or 2, 1, or 0)
+            "error",
+            "never",
+            {
+              "startLines": null
+            }
+        ]
+    },
+    "settings": {
+        "jsdoc": {
+            "ignorePrivate": true
+        }
     }
 }

@@ -58,17 +58,18 @@
     "yeoman-environment": "^3.2.0"
   },
   "devDependencies": {
-    "@adobe/eslint-config-aio-lib-config": "^1.4.0",
+    "@adobe/eslint-config-aio-lib-config": "^4.0.0",
     "acorn": "^8.7.0",
     "dedent": "^0.7.0",
-    "eslint": "^7.32.0",
+    "eslint": "^8.57.0",
     "eslint-config-oclif": "^4.0.0",
-    "eslint-config-standard": "^16.0.3",
-    "eslint-plugin-import": "^2.25.4",
-    "eslint-plugin-jest": "^23.20.0",
-    "eslint-plugin-jsdoc": "^37.9.6",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jest": "^27.9.0",
+    "eslint-plugin-jsdoc": "^48.2.3",
+    "eslint-plugin-n": "^15.7.0",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^5.2.0",
+    "eslint-plugin-promise": "^6.1.1",
     "execa": "^4.0.2",
     "jest": "^27.5.1",
     "jest-haste-map": "^27.5.1",
@@ -78,9 +79,11 @@
     "stdout-stderr": "^0.1.13"
   },
   "engines": {
-    "node": "^14.18 || ^16.13 || >=18"
+    "node": ">=18"
   },
   "files": [
+    "bin/run",
+    "bin/run.cmd",
     "/oclif.manifest.json",
     "/src"
   ],
@@ -94,30 +97,13 @@
     "topicSeparator": " ",
     "repositoryPrefix": "<%- repo %>/blob/<%- version %>/<%- commandPath %>"
   },
-  "main": "src/index.js",
   "scripts": {
-    "lint": "eslint src",
-    "test": "jest --ci && npm run lint",
+    "lint": "eslint src test e2e",
+    "unit-tests": "jest -c jest.config.js test",
+    "test": "npm run unit-tests && npm run lint",
     "prepack": "oclif manifest && oclif readme --no-aliases",
     "postpack": "rm -f oclif.manifest.json",
     "version": "oclif readme && git add README.md",
     "e2e": "jest --collectCoverage=false --testRegex './e2e/e2e.js'"
-  },
-  "jest": {
-    "collectCoverage": true,
-    "testPathIgnorePatterns": [
-      "<rootDir>/tests/fixtures/"
-    ],
-    "coveragePathIgnorePatterns": [
-      "<rootDir>/tests/fixtures/"
-    ],
-    "reporters": [
-      "default",
-      "jest-junit"
-    ],
-    "testEnvironment": "node",
-    "setupFilesAfterEnv": [
-      "./jest.setup.js"
-    ]
   }
 }
