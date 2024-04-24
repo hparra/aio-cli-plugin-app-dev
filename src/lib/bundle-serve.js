@@ -19,8 +19,10 @@ let actionConfig = null
 module.exports = async (bundler, options, log = () => { }, _actionConfig) => {
   actionConfig = _actionConfig
 
-  process.env.__OW_API_KEY = process.env.AIO_runtime_auth
-  process.env.__OW_NAMESPACE = process.env.AIO_runtime_namespace
+  // set up environment variables for openwhisk
+  process.env.__OW_API_KEY = process.env.AIO_RUNTIME_AUTH
+  process.env.__OW_NAMESPACE = process.env.AIO_RUNTIME_NAMESPACE
+  process.env.__OW_API_HOST = process.env.AIO_RUNTIME_APIHOST
 
   // options.dist ??
   const cert = fs.readFileSync(options.https.cert, 'utf-8')
