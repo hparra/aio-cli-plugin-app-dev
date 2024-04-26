@@ -11,8 +11,11 @@ governing permissions and limitations under the License.
 
 const express = require('express')
 const fs = require('fs-extra')
-const https = require('node:https') // built in
+const https = require('node:https')
 const crypto = require('node:crypto')
+const aioLogger = require('@adobe/aio-lib-core-logging')('@adobe/aio-cli-plugin-app-dev:bundle-serve', { level: process.env.LOG_LEVEL, provider: 'winston' })
+const livereload = require('livereload')
+const connectLiveReload = require('connect-livereload')
 
 let actionConfig = null
 
@@ -24,7 +27,6 @@ module.exports = async (bundler, options, log = () => { }, _actionConfig) => {
   process.env.__OW_NAMESPACE = process.env.AIO_RUNTIME_NAMESPACE
   process.env.__OW_API_HOST = process.env.AIO_RUNTIME_APIHOST
 
-  // options.dist ??
   const cert = fs.readFileSync(options.https.cert, 'utf-8')
   const key = fs.readFileSync(options.https.key, 'utf-8')
   const serverOptions = {
@@ -32,31 +34,66 @@ module.exports = async (bundler, options, log = () => { }, _actionConfig) => {
     cert
   }
 
+  const liveReloadServer = livereload.createServer({ https: serverOptions })
+  liveReloadServer.watch(options.dist)
+  liveReloadServer.server.once('connection', () => {
+    setTimeout(() => {
+      liveReloadServer.refresh('/')
+    }, 100)
+  })
+
+  let subscription
+
   try {
-    let { bundleGraph, buildTime } = await bundler.run()
-    let bundles = bundleGraph.getBundles()
+    // run it once
+    const { bundleGraph, buildTime } = await bundler.run()
+    const bundles = bundleGraph.getBundles()
     console.log(`✨ Built ${bundles.length} bundles in ${buildTime}ms!`)
+
+    subscription = await bundler.watch((err, event) => {
+      if (err) {
+        // fatal error
+        throw err
+      }
+
+      aioLogger.info(`${event.changedAssets.size} static asset(s) changed`)
+      const limit = options.verbose ? Infinity : 5
+      if (event.changedAssets.size <= limit) {
+        event.changedAssets.forEach((value, key, map) => {
+          aioLogger.info('\t-->', value)
+        })
+      }
+      if (event.type === 'buildSuccess') {
+        const bundles = event.bundleGraph.getBundles()
+        aioLogger.info(`✨ Built ${bundles.length} bundles in ${event.buildTime}ms!`)
+      } else if (event.type === 'buildFailure') {
+        aioLogger.error(event.diagnostics)
+      }
+    })
   } catch (err) {
-    console.log(err.diagnostics)
+    aioLogger.error(err.diagnostics)
   }
 
   const app = express()
+  app.use(connectLiveReload())
   app.use(express.json())
-  app.use(express.static('dist/dx-excshell-1/web-dev'))
+  app.use(express.static(options.dist))
+
   // DONE: serveAction needs to clear cache for each request, so we get live changes
   app.all('/api/v1/web/*', serveAction)
 
-  const port = options.serveOptions.port || Number(process.env.PORT || 9000)
+  const port = options.port || Number(process.env.PORT || 9000)
   const server = https.createServer(serverOptions, app)
   server.listen(port, () => {
-    console.log('server running on port : ' + port)
+    aioLogger.info('server running on port : ' + port)
   })
-  const url = `${options.serveOptions.https ? 'https:' : 'http:'}//localhost:${port}`
+  const url = `${options.https ? 'https:' : 'http:'}//localhost:${port}`
 
   const serverCleanup = async () => {
-    console.debug('shutting down server ...')
-    await app.close()
+    aioLogger.info('shutting down http server ...')
     await server.close()
+    aioLogger.info('removing parcel watcher ...')
+    await subscription.unsubscribe()
   }
 
   return {
@@ -67,6 +104,7 @@ module.exports = async (bundler, options, log = () => { }, _actionConfig) => {
 
 const serveAction = async (req, res, next) => {
   const url = req.params[0]
+  aioLogger.info(req.url)
   const [packageName, actionName, ...path] = url.split('/')
   const action = actionConfig[packageName]?.actions[actionName]
 
@@ -86,9 +124,9 @@ const serveAction = async (req, res, next) => {
         ...(req.is('application/json') ? req.body : {})
       }
       params.__ow_headers['x-forwarded-for'] = '127.0.0.1'
-      console.log('params = ', params)
+      aioLogger.debug('params = ', params)
       let response = null
-      console.log('this is a sequence')
+      aioLogger.debug('this is a sequence')
       // for each action in sequence, serveAction
       for (let i = 0; i < actions.length; i++) {
         const actionName = actions[i].trim()
@@ -149,7 +187,7 @@ const serveAction = async (req, res, next) => {
       ...(req.is('application/json') ? req.body : {})
     }
     params.__ow_headers['x-forwarded-for'] = '127.0.0.1'
-    console.log('params = ', params)
+    aioLogger.debug('params = ', params)
 
     if (actionFunction) {
       try {

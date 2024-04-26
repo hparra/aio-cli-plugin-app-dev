@@ -20,11 +20,10 @@ const open = require('open')
 const { Flags, ux } = require('@oclif/core')
 const coreConfig = require('@adobe/aio-lib-core-config')
 
-const BaseCommand = require('../../BaseCommand')
-const runDev = require('../../lib/run-dev')
-const SERVER_DEFAULT_PORT = 9080
-// const { runInProcess } = require('../../lib/app-helper')
+const BaseCommand = require('../../../BaseCommand')
+const runDev = require('../../../lib/run-dev')
 
+const SERVER_DEFAULT_PORT = 9080
 const DEV_KEYS_DIR = 'dist/dev-keys/'
 const PRIVATE_KEY_PATH = 'dist/dev-keys/private.key'
 const PUB_CERT_PATH = 'dist/dev-keys/cert-pub.crt'
@@ -32,7 +31,6 @@ const CONFIG_KEY = 'aio-dev.dev-keys'
 
 class Dev extends BaseCommand {
   async run () {
-    // cli input
     const { flags } = await this.parse(Dev)
 
     const spinner = ora()
