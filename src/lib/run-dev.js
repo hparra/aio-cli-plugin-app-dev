@@ -175,7 +175,7 @@ async function runDev (runOptions, config, _inprocHookRunner) {
     if (serverPort !== serverPortToUse) {
       serveLogger.info(`Could not use server port ${serverPortToUse}, using port ${serverPort} instead`)
     }
-    serveLogger.info('server running on port : ', serverPort)
+    serveLogger.info(`server running on port : ${serverPort}`)
   })
 
   let frontendUrl
