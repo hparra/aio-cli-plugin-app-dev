@@ -133,7 +133,27 @@ describe('http api tests', () => {
     }
   })
 
-  test('post url-encoded data (should be promoted to params)', async () => {
+  test('non-raw: post multipart/form-data content-type', async () => {
+    // NOTE: for this content-type, it will always set __ow_body (base64 encoded)
+    const url = createApiUrl({ actionName: 'post-data' })
+    const body = 'hey jude don\'t carry the world upon your shoulders'
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      body,
+      agent: HTTPS_AGENT
+    })
+
+    expect(response.ok).toBeTruthy()
+    expect(response.status).toEqual(200)
+    const responseJson = await response.json()
+    expect(responseJson.params).toMatchObject({ __ow_body: Buffer.from(body).toString('base64') })
+  })
+
+  test('non-raw: post application/x-www-form-urlencoded (should be promoted to params)', async () => {
     const key = 'some_key'
     const value = 'some_value'
 
@@ -154,6 +174,156 @@ describe('http api tests', () => {
     expect(response.status).toEqual(200)
     const responseJson = await response.json()
     expect(responseJson.params).toMatchObject({ [key]: value })
+  })
+
+  test('non-raw: post application/json (should be promoted to params)', async () => {
+    const key = 'some_key'
+    const value = 'some_value'
+
+    const url = createApiUrl({ actionName: 'post-data' })
+    const body = JSON.stringify({
+      [key]: value
+    })
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body,
+      agent: HTTPS_AGENT
+    })
+
+    expect(response.ok).toBeTruthy()
+    expect(response.status).toEqual(200)
+    const responseJson = await response.json()
+    expect(responseJson.params).toMatchObject({ [key]: value })
+  })
+
+  test('non-raw: post text/plain content-type, with body', async () => {
+    // any other content-type, the body will be base64 encoded into __ow_body
+    const key = 'some_key'
+    const value = 'some_value'
+
+    const url = createApiUrl({ actionName: 'post-data' })
+    const body = JSON.stringify({
+      [key]: value
+    })
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      body,
+      agent: HTTPS_AGENT
+    })
+
+    expect(response.ok).toBeTruthy()
+    expect(response.status).toEqual(200)
+    const responseJson = await response.json()
+    expect(responseJson.params).toMatchObject({ __ow_body: body })
+  })
+
+  test('non-raw: post text/plain content-type, no body', async () => {
+    const url = createApiUrl({ actionName: 'post-data' })
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      agent: HTTPS_AGENT
+    })
+
+    expect(response.ok).toBeTruthy()
+    expect(response.status).toEqual(200)
+    const responseJson = await response.json()
+    expect(responseJson.params).toMatchObject({ __ow_body: '' })
+  })
+
+  test('raw: post multipart/form-data content-type', async () => {
+    // NOTE: for this content-type, raw will always set __ow_body (base64 encoded)
+    const url = createApiUrl({ actionName: 'post-raw-data' })
+    const body = 'hey jude don\'t carry the world upon your shoulders'
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      body,
+      agent: HTTPS_AGENT
+    })
+
+    expect(response.ok).toBeTruthy()
+    expect(response.status).toEqual(200)
+    const responseJson = await response.json()
+    expect(responseJson.params).toMatchObject({ __ow_body: Buffer.from(body).toString('base64') })
+  })
+
+  test('raw: post application/json content-type', async () => {
+    // NOTE: raw will always set __ow_body (base64 encoded) and not promote the body to parameters
+    const url = createApiUrl({ actionName: 'post-raw-data' })
+    const body = JSON.stringify({ hello: 'world' })
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body,
+      agent: HTTPS_AGENT
+    })
+
+    expect(response.ok).toBeTruthy()
+    expect(response.status).toEqual(200)
+    const responseJson = await response.json()
+    expect(responseJson.params).toMatchObject({ __ow_body: Buffer.from(body).toString('base64') })
+  })
+
+  test('raw: post application/x-www-form-urlencoded content-type', async () => {
+    // SPECIAL NOTE:
+    // this content-type as raw, will set __ow_body (*NOT* base64 encoded) as the query string
+    // and not promote the body to parameters
+    const url = createApiUrl({ actionName: 'post-raw-data' })
+    const formData = new URLSearchParams()
+    formData.append('some_key', 'some_value')
+    formData.append('some_other_key', 'some_other_value')
+    const body = formData.toString()
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body,
+      agent: HTTPS_AGENT
+    })
+
+    expect(response.ok).toBeTruthy()
+    expect(response.status).toEqual(200)
+    const responseJson = await response.json()
+    expect(responseJson.params).toMatchObject({ __ow_body: body })
+  })
+
+  test('raw: post text/plain content-type', async () => {
+    const url = createApiUrl({ actionName: 'post-raw-data' })
+    const body = '99 luftballons'
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      body,
+      agent: HTTPS_AGENT
+    })
+
+    expect(response.ok).toBeTruthy()
+    expect(response.status).toEqual(200)
+    const responseJson = await response.json()
+    expect(responseJson.params).toMatchObject({ __ow_body: body })
   })
 
   test('front end is available (200)', async () => {

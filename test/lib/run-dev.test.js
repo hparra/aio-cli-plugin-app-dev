@@ -15,6 +15,7 @@ const mockExpress = require('express')
 const mockLogger = require('@adobe/aio-lib-core-logging')
 const mockLibWeb = require('@adobe/aio-lib-web')
 const mockGetPort = require('get-port')
+const { URLSearchParams } = require('node:url')
 const {
   createActionParametersFromRequest, runDev, serveWebAction, serveNonWebAction, httpStatusResponse,
   invokeAction, invokeSequence, interpolate, statusCodeMessage, isRawWebAction, isWebAction
@@ -77,7 +78,7 @@ const createRes = ({ mockStatus, mockSend, mockSet = jest.fn() }) => {
 }
 
 // create a Request object
-const createReq = ({ url, body, headers = [], query, method = 'GET', is = jest.fn() }) => {
+const createReq = ({ url, body, headers = {}, query, method = 'GET', is = jest.fn() }) => {
   return {
     body,
     headers,
@@ -176,9 +177,128 @@ test('exports', () => {
 })
 
 describe('createActionParametersFromRequest', () => {
+  /** @private */
+  async function createAsyncFnCall ({ isRaw, mimeType, body, method }) {
+    const is = jest.fn((_type) => _type === mimeType)
+
+    const req = createReq({
+      is,
+      method,
+      body, // this input is as if the express middleware ran
+      url: 'foo/bar',
+      headers: {
+        'content-type': mimeType
+      }
+    })
+
+    const action = {
+      function: fixturePath('actions/successReturnAction.js'),
+      web: isRaw ? 'raw' : 'yes'
+    }
+
+    const packageName = 'foo'
+    const actionName = 'bar'
+    const actionConfig = {
+      [packageName]: {
+        actions: {
+          [actionName]: action
+        }
+      }
+    }
+
+    const actionRequestContext = { action, actionConfig, packageName, actionName }
+    return createActionParametersFromRequest({
+      req,
+      contextItem: action,
+      actionRequestContext,
+      actionInputs: action.inputs,
+      logger: mockLogger
+    })
+  }
+
+  test('non-raw: POST application/json', async () => {
+    const isRaw = false
+    const method = 'POST'
+    const mimeType = 'application/json'
+    const body = { some: 'json' }
+
+    const actionParams = await createAsyncFnCall({ isRaw, mimeType, body, method })
+    expect(actionParams).toMatchObject(body)
+    expect(actionParams.__ow_body).not.toBeDefined()
+  })
+
+  test('non-raw: POST application/x-www-form-urlencoded', async () => {
+    const isRaw = false
+    const method = 'POST'
+    const mimeType = 'application/x-www-form-urlencoded'
+    const formData = new URLSearchParams('a=b&c=d')
+    const body = Object.fromEntries(formData)
+
+    const actionParams = await createAsyncFnCall({ isRaw, mimeType, body, method })
+    expect(actionParams).toMatchObject(body)
+    expect(actionParams.__ow_body).not.toBeDefined()
+  })
+
+  test('non-raw: POST text/plain', async () => {
+    const isRaw = false
+    const method = 'POST'
+    const mimeType = 'text/plain'
+    const body = 'an octopus\'s garden in the shade'
+
+    const actionParams = await createAsyncFnCall({ isRaw, mimeType, body, method })
+    expect(actionParams.__ow_body).toEqual(body) // will not be base64'ed
+  })
+
+  test('raw: POST multipart/form-data', async () => {
+    const isRaw = true
+    const method = 'POST'
+    const mimeType = 'multipart/form-data'
+    const body = Buffer.from('whisper words of wisdom') // simulate middleware processing
+
+    const actionParams = await createAsyncFnCall({ isRaw, mimeType, body, method })
+    expect(actionParams.__ow_body).toEqual(body.toString('base64')) // raw body will be base64'ed
+  })
+
+  test('raw: POST text/plain', async () => {
+    const isRaw = true
+    const method = 'POST'
+    const mimeType = 'text/plain'
+    const body = Buffer.from('it\'s a steady job, but he wants to be a paperback writer') // simulate middleware processing
+
+    const actionParams = await createAsyncFnCall({ isRaw, mimeType, body, method })
+    expect(actionParams.__ow_body).toEqual(body.toString('base64')) // raw body will be base64'ed
+  })
+
+  test('raw: POST application/json', async () => {
+    const isRaw = true
+    const method = 'POST'
+    const mimeType = 'application/json'
+    const body = { some: 'json' } // simulate middleware processing
+
+    const actionParams = await createAsyncFnCall({ isRaw, mimeType, body, method })
+    expect(actionParams.__ow_body).toEqual(Buffer.from(JSON.stringify(body)).toString('base64')) // raw body will be base64'ed
+  })
+
+  test('raw: POST application/x-www-form-urlencoded', async () => {
+    const isRaw = true
+    const method = 'POST'
+    const mimeType = 'application/x-www-form-urlencoded'
+    const formData = new URLSearchParams('a=b&c=d')
+    const body = Object.fromEntries(formData) // simulate middleware processing
+
+    const actionParams = await createAsyncFnCall({ isRaw, mimeType, body, method })
+    expect(actionParams.__ow_body).toEqual(formData.toString()) // raw body will *NOT* be base64'ed for this content-type
+  })
+
   test('interpolate', async () => {
     process.env.mustache = 'world'
-    const req = createReq({ url: 'foo/bar', body: { name: 'world' }, headers: ['content-type'] })
+    const req = createReq({
+      url: 'foo/bar',
+      body: { name: 'world' },
+      headers: {
+        'content-type': 'application/json'
+      }
+    })
     const packageName = 'foo'
     const action = {
       function: fixturePath('actions/successReturnAction.js'),
@@ -460,11 +580,20 @@ describe('serveWebAction', () => {
   })
 
   test('action found, is raw web action', async () => {
+    const mimeType = 'multipart/form-data'
     const mockStatus = jest.fn()
     const mockSend = jest.fn()
+    const is = (_type) => _type === mimeType
 
     const res = createRes({ mockStatus, mockSend })
-    const req = createReq({ url: 'foo/bar' })
+    const req = createReq({
+      is,
+      body: 'some body',
+      url: 'foo/bar',
+      headers: {
+        'content-type': mimeType
+      }
+    })
     const packageName = 'foo'
 
     const actionConfig = {
@@ -481,7 +610,39 @@ describe('serveWebAction', () => {
     await serveWebAction(req, res, actionConfig)
     expect(mockSend).toHaveBeenCalledTimes(1)
     expect(mockStatus).toHaveBeenCalledWith(200)
-    expect(mockLogger.warn).toHaveBeenCalledWith('raw handling is not implemented yet')
+  })
+
+  test('action found, is raw web action (text/plain)', async () => {
+    const mimeType = 'text/plain'
+    const mockStatus = jest.fn()
+    const mockSend = jest.fn()
+    const is = (_type) => _type === mimeType
+
+    const res = createRes({ mockStatus, mockSend })
+    const req = createReq({
+      is,
+      body: 'some body',
+      url: 'foo/bar',
+      headers: {
+        'content-type': mimeType
+      }
+    })
+    const packageName = 'foo'
+
+    const actionConfig = {
+      [packageName]: {
+        actions: {
+          bar: {
+            function: fixturePath('actions/successReturnAction.js'),
+            web: 'raw'
+          }
+        }
+      }
+    }
+
+    await serveWebAction(req, res, actionConfig)
+    expect(mockSend).toHaveBeenCalledTimes(1)
+    expect(mockStatus).toHaveBeenCalledWith(200)
   })
 
   test('action not found, is sequence', async () => {

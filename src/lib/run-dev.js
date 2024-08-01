@@ -25,6 +25,7 @@ const { getReasonPhrase } = require('http-status-codes')
 
 const utils = require('./app-helper')
 const { SERVER_DEFAULT_PORT, BUNDLER_DEFAULT_PORT, DEV_API_PREFIX, DEV_API_WEB_PREFIX, BUNDLE_OPTIONS, CHANGED_ASSETS_PRINT_LIMIT } = require('./constants')
+const RAW_CONTENT_TYPES = ['application/octet-stream', 'multipart/form-data']
 
 /* global Request, Response */
 
@@ -160,8 +161,16 @@ async function runDev (runOptions, config, _inprocHookRunner) {
   }
 
   const app = express()
-  app.use(express.urlencoded())
-  app.use(express.json())
+
+  const middlewareOptions = {
+    inflate: false, // the same behavior in the cloud
+    limit: '1MB' // the same limits in the cloud
+  }
+  app.use(express.text({ ...middlewareOptions, type: 'text/plain' }))
+  app.use(express.json({ ...middlewareOptions, strict: false }))
+  app.use(express.urlencoded(middlewareOptions))
+  app.use(express.raw({ ...middlewareOptions, type: RAW_CONTENT_TYPES }))
+
   if (hasFrontend) {
     app.use(connectLiveReload())
     app.use(express.static(devConfig.web.distDev))
@@ -459,20 +468,6 @@ async function serveWebAction (req, res, actionConfig) {
   const sequence = actionConfig[packageName]?.sequences?.[contextItemName]
   const owPath = restofPath.join('/')
 
-  const actionLogger = coreLogger(`serveWebAction ${contextItemName}`, { level: process.env.LOG_LEVEL, provider: 'winston' })
-
-  const contextItemParams = createActionParametersFromRequest({ req, actionInputs: action?.inputs })
-  contextItemParams.__ow_path = owPath
-
-  actionLogger.debug('contextItemParams =', contextItemParams)
-
-  const actionRequestContext = {
-    packageName,
-    contextItemName,
-    contextItemParams,
-    actionConfig
-  }
-
   let invoker, contextItem
 
   if (sequence) {
@@ -485,13 +480,22 @@ async function serveWebAction (req, res, actionConfig) {
     invoker = null
   }
 
+  const actionLogger = coreLogger(`serveWebAction ${contextItemName}`, { level: process.env.LOG_LEVEL, provider: 'winston' })
+  const contextItemParams = createActionParametersFromRequest({ req, contextItem, actionInputs: action?.inputs })
+  contextItemParams.__ow_path = owPath
+  actionLogger.debug('contextItemParams =', contextItemParams)
+
+  const actionRequestContext = {
+    packageName,
+    contextItemName,
+    contextItemParams,
+    actionConfig
+  }
+
   if (invoker) {
     if (!isWebAction(contextItem)) {
       const actionResponse = { statusCode: 404, body: { error: 'The requested resource does not exist.' } }
       return httpStatusResponse({ actionResponse, res, logger: actionLogger })
-    }
-    if (isRawWebAction(contextItem)) {
-      actionLogger.warn('raw handling is not implemented yet')
     }
 
     actionRequestContext.contextItem = contextItem
@@ -532,10 +536,11 @@ function interpolate (valueString, props) {
  *
  * @param {object} param the parameters
  * @param {Request} param.req the request object
+ * @param {object} param.contextItem the context item (action or sequence)
  * @param {object} param.actionInputs the action inputs
  * @returns {object} the action parameters
  */
-function createActionParametersFromRequest ({ req, actionInputs = {} }) {
+function createActionParametersFromRequest ({ req, contextItem, actionInputs = {} }) {
   // note we clone action so if env vars change between runs it is reflected - jm
   const action = { inputs: {} }
   Object.entries(actionInputs).forEach(([key, value]) => {
@@ -552,11 +557,25 @@ function createActionParametersFromRequest ({ req, actionInputs = {} }) {
     ...req.query,
     ...action.inputs
   }
-  if (req.is('application/*')) {
-    Object.assign(params, req.body)
-  } else {
-    params.__ow_body = req.body
+
+  const isJson = req.is('application/json')
+  const isFormData = req.is('application/x-www-form-urlencoded')
+  const isRaw = isRawWebAction(contextItem)
+
+  if (params.__ow_method === 'post' && req.body !== null) {
+    if (isRaw) {
+      if (isFormData) {
+        params.__ow_body = new URLSearchParams(req.body).toString() // convert json back to query string
+      } else {
+        params.__ow_body = utils.bodyTransformToRaw(req.body)
+      }
+    } else if (isJson || isFormData) { // body is parsed by express middleware into json
+      Object.assign(params, req.body)
+    } else {
+      params.__ow_body = utils.bodyTransformToRaw(req.body)
+    }
   }
+
   return params
 }
 
