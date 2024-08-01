@@ -1,7 +1,10 @@
-
 module.exports = {
   module: {
     rules: [
+      {
+        test: /tsAction\/index.ts$/,
+        use: 'ts-loader'
+      },
       {
         test: /syntaxidermist\/index.js$/,
         use: [
@@ -11,9 +14,9 @@ module.exports = {
               name: '__index.js',
               emitFile: true
             }
-          },
-        ],
-      },
-    ],
-  },
+          }
+        ]
+      }
+    ]
+  }
 }

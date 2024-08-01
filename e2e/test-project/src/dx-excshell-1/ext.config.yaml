@@ -124,3 +124,19 @@ runtimeManifest:
             LOG_LEVEL: debug
           annotations:
             final: true
+        esmAction:
+          function: actions/esmAction/index.js
+          web: 'yes'
+          runtime: nodejs:18
+          inputs:
+            LOG_LEVEL: debug
+          annotations:
+            final: true
+        tsAction:
+          function: actions/tsAction/index.ts
+          web: 'yes'
+          runtime: nodejs:18
+          inputs:
+            LOG_LEVEL: debug
+          annotations:
+            final: true
