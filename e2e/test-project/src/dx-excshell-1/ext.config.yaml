@@ -42,6 +42,7 @@ runtimeManifest:
           runtime: nodejs:18
           inputs:
             LOG_LEVEL: debug
+            DUMP_PARAMS: $DUMP_PARAMS
           annotations:
             final: true
         post-raw-data:
@@ -50,6 +51,7 @@ runtimeManifest:
           runtime: nodejs:18
           inputs:
             LOG_LEVEL: debug
+            DUMP_PARAMS: $DUMP_PARAMS
           annotations:
             final: true
         noAdobeAuth:

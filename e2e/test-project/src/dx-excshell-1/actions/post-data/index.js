@@ -17,6 +17,9 @@ governing permissions and limitations under the License.
  * @returns {object} runtime response object
  */
 async function main (params) {
+  if (params.DUMP_PARAMS) {
+    console.log('params', JSON.stringify(params, null, 2))
+  }
   const response = {
     statusCode: 200,
     body: {
