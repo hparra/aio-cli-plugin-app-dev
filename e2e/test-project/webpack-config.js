@@ -3,6 +3,7 @@ module.exports = {
     rules: [
       {
         test: /tsAction\/index.ts$/,
+        // includes, excludes are in tsconfig.json
         use: 'ts-loader'
       },
       {
