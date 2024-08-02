@@ -13,6 +13,7 @@ governing permissions and limitations under the License.
 /**
  * The main function.
  *
+ * @param {object} params the parameters
  * @returns {object} runtime response object
  */
 export async function main (params) {
