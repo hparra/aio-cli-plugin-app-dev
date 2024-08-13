@@ -347,13 +347,14 @@ async function invokeAction ({ actionRequestContext, logger }) {
   }
   // generate an activationID just like openwhisk
   process.env.__OW_ACTIVATION_ID = crypto.randomBytes(16).toString('hex')
-  delete require.cache[action.function]
+  const actionFolder = path.join(distFolder, packageName, actionName)
+  // TODO: find a better way to get the actual folder name without this magic string
+  const actionPath = `${actionFolder}-temp`
+  delete require.cache[actionPath]
   let actionFunction
   // catch errors when loading the action function
   try {
-    const actionFolder = path.join(distFolder, packageName, actionName)
-    // TODO: find a better way to get the actual folder name without this magic string
-    const actionPath = `${actionFolder}-temp`
+    // run the webpacked action function
     actionFunction = require(actionPath)?.main
   } catch (e) {
     const message = `${actionName} action not found, or does not export main`
