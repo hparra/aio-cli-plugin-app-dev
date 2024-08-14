@@ -11,6 +11,7 @@ governing permissions and limitations under the License.
 */
 
 const { SERVER_DEFAULT_PORT } = require('../../src/lib/constants')
+const path = require('node:path')
 const mockExpress = require('express')
 const mockLogger = require('@adobe/aio-lib-core-logging')
 const mockLibWeb = require('@adobe/aio-lib-web')
@@ -18,7 +19,7 @@ const mockGetPort = require('get-port')
 const { URLSearchParams } = require('node:url')
 const {
   createActionParametersFromRequest, runDev, serveWebAction, serveNonWebAction, httpStatusResponse,
-  invokeAction, invokeSequence, interpolate, statusCodeMessage, isRawWebAction, isWebAction
+  invokeAction, invokeSequence, interpolate, statusCodeMessage, isRawWebAction, isWebAction, defaultActionLoader
 } = require('../../src/lib/run-dev')
 
 /* eslint no-template-curly-in-string: 0 */
@@ -91,6 +92,9 @@ const createReq = ({ url, body, headers = {}, query, method = 'GET', is = jest.f
 
 const createConfig = ({ distDev = 'dist', hasFrontend, hasBackend, packageName = 'mypackage', actions = {}, sequences = {} }) => {
   return {
+    actions: {
+      dist: 'dist'
+    },
     web: {
       distDev
     },
@@ -145,6 +149,7 @@ beforeEach(() => {
   mockLogger.mockReset()
   mockGetPort.mockReset()
   mockExpress.mockReset()
+  path.join.mockReset()
 })
 
 describe('test interpolate', () => {
@@ -531,6 +536,11 @@ test('serveNonWebAction', () => {
 })
 
 describe('serveWebAction', () => {
+  const DIST_FOLDER = 'dist'
+  const createActionLoader = (actionPath) => {
+    return () => require(actionPath).main
+  }
+
   test('action found, not web action', async () => {
     const mockStatus = jest.fn()
     const mockSend = jest.fn()
@@ -549,7 +559,7 @@ describe('serveWebAction', () => {
       }
     }
 
-    await serveWebAction(req, res, actionConfig)
+    await serveWebAction(req, res, actionConfig, DIST_FOLDER)
     expect(mockSend).toHaveBeenCalledTimes(1)
     expect(mockStatus).toHaveBeenCalledWith(404)
   })
@@ -561,19 +571,21 @@ describe('serveWebAction', () => {
     const res = createRes({ mockStatus, mockSend })
     const req = createReq({ url: 'foo/bar' })
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
 
     const actionConfig = {
       [packageName]: {
         actions: {
           bar: {
-            function: fixturePath('actions/successNoReturnAction.js'),
+            function: actionPath,
             web: true
           }
         }
       }
     }
 
-    await serveWebAction(req, res, actionConfig)
+    await serveWebAction(req, res, actionConfig, DIST_FOLDER, actionLoader)
     expect(mockSend).toHaveBeenCalledTimes(1)
     expect(mockStatus).toHaveBeenCalledWith(204) // because there is no body
     expect(mockLogger.warn).not.toHaveBeenCalled()
@@ -595,19 +607,21 @@ describe('serveWebAction', () => {
       }
     })
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
 
     const actionConfig = {
       [packageName]: {
         actions: {
           bar: {
-            function: fixturePath('actions/successReturnAction.js'),
+            function: actionPath,
             web: 'raw'
           }
         }
       }
     }
 
-    await serveWebAction(req, res, actionConfig)
+    await serveWebAction(req, res, actionConfig, DIST_FOLDER, actionLoader)
     expect(mockSend).toHaveBeenCalledTimes(1)
     expect(mockStatus).toHaveBeenCalledWith(200)
   })
@@ -628,19 +642,21 @@ describe('serveWebAction', () => {
       }
     })
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
 
     const actionConfig = {
       [packageName]: {
         actions: {
           bar: {
-            function: fixturePath('actions/successReturnAction.js'),
+            function: actionPath,
             web: 'raw'
           }
         }
       }
     }
 
-    await serveWebAction(req, res, actionConfig)
+    await serveWebAction(req, res, actionConfig, DIST_FOLDER, actionLoader)
     expect(mockSend).toHaveBeenCalledTimes(1)
     expect(mockStatus).toHaveBeenCalledWith(200)
   })
@@ -653,6 +669,8 @@ describe('serveWebAction', () => {
     const res = createRes({ mockStatus, mockSend })
     const req = createReq({ url: 'foo/mysequence', is })
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
 
     const actionConfig = {
       [packageName]: {
@@ -663,13 +681,13 @@ describe('serveWebAction', () => {
         },
         actions: {
           bar: {
-            function: fixturePath('actions/successNoReturnAction.js')
+            function: actionPath
           }
         }
       }
     }
 
-    await serveWebAction(req, res, actionConfig)
+    await serveWebAction(req, res, actionConfig, DIST_FOLDER, actionLoader)
     expect(mockSend).toHaveBeenCalledTimes(1)
     expect(mockSend).toHaveBeenCalledWith({ error: 'The requested resource does not exist.' })
     expect(mockStatus).toHaveBeenCalledWith(404)
@@ -682,24 +700,30 @@ describe('serveWebAction', () => {
     const res = createRes({ mockStatus, mockSend })
     const req = createReq({ url: 'foo/not_an_action' })
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
 
     const actionConfig = {
       [packageName]: {
         actions: {
           bar: {
-            function: fixturePath('actions/successNoReturnAction.js')
+            function: actionPath
           }
         }
       }
     }
 
-    await serveWebAction(req, res, actionConfig)
+    await serveWebAction(req, res, actionConfig, DIST_FOLDER, actionLoader)
     expect(mockSend).toHaveBeenCalledTimes(1)
     expect(mockStatus).toHaveBeenCalledWith(404)
   })
 })
 
 describe('invokeSequence', () => {
+  const createActionLoader = (actionPath) => {
+    return () => require(actionPath).main
+  }
+
   test('undefined sequence (null response)', async () => {
     const sequence = undefined
     const actionRequestContext = { contextItem: sequence }
@@ -710,69 +734,83 @@ describe('invokeSequence', () => {
 
   test('unknown action in sequence', async () => {
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
 
     const sequence = { actions: 'a, unknown_action' }
     const actionConfig = {
       [packageName]: {
         actions: {
-          a: { function: fixturePath('actions/successNoReturnAction.js') }
+          a: { function: actionPath }
         }
       }
     }
-    const actionRequestContext = { contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: { error: 'Sequence component does not exist.' }, statusCode: 400 })
   })
 
   test('defined sequence (one action)', async () => {
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
 
     const sequence = { actions: 'a' }
     const actionConfig = {
       [packageName]: {
         actions: {
           a: {
-            function: fixturePath('actions/successNoReturnAction.js')
+            function: actionPath
           }
         }
       }
     }
-    const actionRequestContext = { contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: '', statusCode: 204 })
   })
 
   test('defined sequence (multiple actions)', async () => {
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
 
     const sequence = { actions: 'a, b, c' }
     const actionConfig = {
       [packageName]: {
         actions: {
-          a: { function: fixturePath('actions/successNoReturnAction.js') },
-          b: { function: fixturePath('actions/successNoReturnAction.js') },
-          c: { function: fixturePath('actions/successNoReturnAction.js') }
+          a: { function: actionPath },
+          b: { function: actionPath },
+          c: { function: actionPath }
         }
       }
     }
-    const actionRequestContext = { contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: '', statusCode: 204 })
   })
 
   test('sequence with action that does not return an object (coverage)', async () => {
     const packageName = 'foo'
+    const actionPathA = fixturePath('actions/successNoReturnAction.js')
+    const actionPathB = fixturePath('actions/successReturnNonObject.js')
+    const actionLoader = ({ actionName }) => {
+      switch (actionName) {
+        case 'a': return require(actionPathA).main
+        case 'b': return require(actionPathB).main
+      }
+    }
 
     const sequence = { actions: 'a, b' }
     const actionConfig = {
       [packageName]: {
         actions: {
-          a: { function: fixturePath('actions/successNoReturnAction.js') },
-          b: { function: fixturePath('actions/successReturnNonObject.js') }
+          a: { function: actionPathA },
+          b: { function: actionPathB }
         }
       }
     }
-    const actionRequestContext = { contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: '', statusCode: 200 })
   })
@@ -781,29 +819,35 @@ describe('invokeSequence', () => {
 
   test('action not found', async () => {
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
     const sequence = { actions: 'a, unknown_action' }
     const actionConfig = {
       [packageName]: {
         actions: {
-          a: { function: fixturePath('actions/successNoReturnAction.js') }
+          a: { function: actionPath }
         }
       }
     }
 
-    const actionRequestContext = { contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: {}, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: { error: 'Sequence component does not exist.' }, statusCode: 400 })
   })
 
   test('require-adobe-auth, but no authorization header', async () => {
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
     const sequence = { actions: 'a' }
     const sequenceParams = {}
     const actionConfig = {
       [packageName]: {
         actions: {
           a: {
-            function: fixturePath('actions/successNoReturnAction.js'),
+            function: actionPath,
             annotations: {
               'require-adobe-auth': true
             }
@@ -812,19 +856,22 @@ describe('invokeSequence', () => {
       }
     }
 
-    const actionRequestContext = { contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: { error: 'cannot authorize request, reason: missing authorization header' }, statusCode: 401 })
   })
 
   test('require-adobe-auth, with authorization header (lowercase and uppercase)', async () => {
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
     const sequence = { actions: 'a' }
     const actionConfig = {
       [packageName]: {
         actions: {
           a: {
-            function: fixturePath('actions/successNoReturnAction.js'),
+            function: actionPath,
             annotations: {
               'require-adobe-auth': true
             }
@@ -841,7 +888,7 @@ describe('invokeSequence', () => {
           'x-gw-ims-org-id': 'some-org-id'
         }
       }
-      const actionRequestContext = { contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
+      const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
       const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
       expect(response).toEqual({ body: '', statusCode: 204 })
     }
@@ -853,7 +900,7 @@ describe('invokeSequence', () => {
           'x-gw-ims-org-id': 'some-org-id'
         }
       }
-      const actionRequestContext = { contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
+      const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
       const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
       expect(response).toEqual({ body: '', statusCode: 204 })
     }
@@ -861,40 +908,54 @@ describe('invokeSequence', () => {
 
   test('action that throws an exception', async () => {
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/throwExceptionAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
     const sequence = { actions: 'a' }
     const sequenceParams = {}
     const actionConfig = {
       [packageName]: {
         actions: {
-          a: { function: fixturePath('actions/throwExceptionAction.js') }
+          a: { function: actionPath }
         }
       }
     }
 
-    const actionRequestContext = { contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: { error: "Response is not valid 'message/http'." }, statusCode: 400 })
   })
 
   test('action that does not export main', async () => {
     const packageName = 'foo'
+    const actionPath = fixturePath('actions/noMainAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
     const sequence = { actions: 'a' }
     const sequenceParams = {}
     const actionConfig = {
       [packageName]: {
         actions: {
-          a: { function: fixturePath('actions/noMainAction.js') }
+          a: { function: actionPath }
         }
       }
     }
 
-    const actionRequestContext = { contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: { error: "Response is not valid 'message/http'." }, statusCode: 400 })
   })
 
   test('sequence pass params between sequence actions', async () => {
     const packageName = 'foo'
+    const actionPathA = fixturePath('actions/addNumbersAction.js')
+    const actionPathB = fixturePath('actions/squareNumberAction.js')
+    const actionLoader = ({ actionName }) => {
+      switch (actionName) {
+        case 'a': return require(actionPathA).main
+        case 'b': return require(actionPathB).main
+      }
+    }
 
     // multiple actions in sequence
     const sequence = { actions: 'a, b' }
@@ -904,12 +965,12 @@ describe('invokeSequence', () => {
     const actionConfig = {
       [packageName]: {
         actions: {
-          a: { function: fixturePath('actions/addNumbersAction.js') },
-          b: { function: fixturePath('actions/squareNumberAction.js') }
+          a: { function: actionPathA },
+          b: { function: actionPathB }
         }
       }
     }
-    const actionRequestContext = { contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: sequence, contextItemParams: sequenceParams, packageName, actionConfig }
     const response = await invokeSequence({ actionRequestContext, logger: mockLogger })
     // result of sequence with the two actions: 1+2+3 = 6, then 6*6 = 36
     expect(response).toMatchObject({ body: { payload: 36 }, statusCode: 200 })
@@ -1191,9 +1252,16 @@ describe('runDev', () => {
 })
 
 describe('invokeAction', () => {
+  const createActionLoader = (actionPath) => {
+    return () => require(actionPath).main
+  }
+
   test('successful action (200)', async () => {
     const packageName = 'foo'
-    const action = { function: fixturePath('actions/successReturnAction.js') }
+    const actionPath = fixturePath('actions/successReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
+    const action = { function: actionPath }
     const actionParams = {}
     const actionName = 'a'
     const actionConfig = {
@@ -1204,7 +1272,7 @@ describe('invokeAction', () => {
       }
     }
 
-    const actionRequestContext = { contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
     const response = await invokeAction({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({
       body: 'Hello Simple Action',
@@ -1217,7 +1285,10 @@ describe('invokeAction', () => {
 
   test('successful action (204)', async () => {
     const packageName = 'foo'
-    const action = { function: fixturePath('actions/successNoReturnAction.js') }
+    const actionPath = fixturePath('actions/successNoReturnAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
+    const action = { function: actionPath }
     const actionParams = {}
     const actionName = 'a'
     const actionConfig = {
@@ -1228,14 +1299,17 @@ describe('invokeAction', () => {
       }
     }
 
-    const actionRequestContext = { contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
     const response = await invokeAction({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: '', statusCode: 204 })
   })
 
   test('exception in action (400)', async () => {
     const packageName = 'foo'
-    const action = { function: fixturePath('actions/throwExceptionAction.js') }
+    const actionPath = fixturePath('actions/throwExceptionAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
+    const action = { function: actionPath }
     const actionParams = {}
     const actionName = 'a'
     const actionConfig = {
@@ -1246,14 +1320,17 @@ describe('invokeAction', () => {
       }
     }
 
-    const actionRequestContext = { contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
     const response = await invokeAction({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: { error: "Response is not valid 'message/http'." }, statusCode: 400 })
   })
 
   test('error object returned in action (400)', async () => {
     const packageName = 'foo'
-    const action = { function: fixturePath('actions/returnErrorAction.js') }
+    const actionPath = fixturePath('actions/returnErrorAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
+    const action = { function: actionPath }
     const actionParams = {}
     const actionName = 'a'
     const actionConfig = {
@@ -1264,14 +1341,17 @@ describe('invokeAction', () => {
       }
     }
 
-    const actionRequestContext = { contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
     const response = await invokeAction({ actionRequestContext, logger: mockLogger })
     expect(response).toEqual({ body: { error: 'something wrong happened here' }, statusCode: 403 })
   })
 
   test('error action cannot load action (400)', async () => {
     const packageName = 'foo'
-    const action = { function: fixturePath('actions/syntaxErrorAction.js') }
+    const actionPath = fixturePath('actions/syntaxErrorAction.js')
+    const actionLoader = createActionLoader(actionPath)
+
+    const action = { function: actionPath }
     const actionParams = {}
     const actionName = 'a'
     const actionConfig = {
@@ -1282,8 +1362,39 @@ describe('invokeAction', () => {
       }
     }
 
-    const actionRequestContext = { contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
+    const actionRequestContext = { contextActionLoader: actionLoader, contextItem: action, contextItemParams: actionParams, contextItemName: actionName, packageName, actionConfig }
     const response = await invokeAction({ actionRequestContext, logger: mockLogger })
     expect(response).toMatchObject({ body: { error: expect.stringMatching('Response is not valid \'message/http\'.') }, statusCode: 400 })
+  })
+})
+
+describe('defaultActionLoader', () => {
+  test('success', async () => {
+    const params = {
+      distFolder: fixturePath('dist'),
+      packageName: 'my-package',
+      actionName: 'successReturnAction'
+    }
+
+    const realPath = jest.requireActual('node:path')
+    // use the real path.join
+    path.join.mockImplementation(realPath.join)
+
+    const actionFunction = await defaultActionLoader(params)
+    expect(actionFunction).toBeDefined()
+  })
+
+  test('failure', async () => {
+    const params = {
+      distFolder: fixturePath('dist'),
+      packageName: 'my-package',
+      actionName: 'unknown-action'
+    }
+
+    const realPath = jest.requireActual('node:path')
+    // use the real path.join
+    path.join.mockImplementation(realPath.join)
+
+    await expect(defaultActionLoader(params)).rejects.toThrow()
   })
 })

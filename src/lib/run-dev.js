@@ -23,6 +23,7 @@ const rtLib = require('@adobe/aio-lib-runtime')
 const coreLogger = require('@adobe/aio-lib-core-logging')
 const { getReasonPhrase } = require('http-status-codes')
 const path = require('node:path')
+const { buildActions } = require('@adobe/aio-lib-runtime')
 
 const utils = require('./app-helper')
 const { SERVER_HOST, SERVER_DEFAULT_PORT, BUNDLER_DEFAULT_PORT, DEV_API_PREFIX, DEV_API_WEB_PREFIX, BUNDLE_OPTIONS, CHANGED_ASSETS_PRINT_LIMIT } = require('./constants')
@@ -276,7 +277,7 @@ async function serveNonWebAction (req, res, actionConfig, distFolder) {
  * @returns {ActionResponse} the action response object
  */
 async function invokeSequence ({ actionRequestContext, logger }) {
-  const { contextItem: sequence, contextItemParams: sequenceParams, actionConfig, packageName } = actionRequestContext
+  const { distFolder, contextActionLoader, contextItem: sequence, contextItemParams: sequenceParams, actionConfig, packageName } = actionRequestContext
   const actions = sequence?.actions?.split(',') ?? []
   logger.info('actions to call', sequence?.actions)
 
@@ -296,7 +297,7 @@ async function invokeSequence ({ actionRequestContext, logger }) {
           ...lastActionResponse
         }
 
-    const context = { contextItem: action, actionName, contextItemParams: actionParams }
+    const context = { distFolder, contextActionLoader, packageName, contextItem: action, contextItemName: actionName, contextItemParams: actionParams }
     if (action) {
       logger.info('calling action', actionName)
       lastActionResponse = await invokeAction({ actionRequestContext: context, logger })
@@ -317,6 +318,22 @@ async function invokeSequence ({ actionRequestContext, logger }) {
 }
 
 /**
+ * Load the action function based on the context.
+ *
+ * @param {object} params the parameters
+ * @param {string} params.distFolder the dist folder
+ * @param {string} params.packageName the package name
+ * @param {string} params.actionName the action name
+ * @returns {object} the action function
+ */
+async function defaultActionLoader ({ distFolder, packageName, actionName }) {
+  const actionFolder = path.join(distFolder, packageName, actionName)
+  const actionPath = `${actionFolder}-temp`
+  delete require.cache[actionPath]
+  return require(actionPath)?.main
+}
+
+/**
  * Invoke an action.
  *
  * @param {object} params the parameters
@@ -325,7 +342,7 @@ async function invokeSequence ({ actionRequestContext, logger }) {
  * @returns {ActionResponse} the action response
  */
 async function invokeAction ({ actionRequestContext, logger }) {
-  const { distFolder, packageName, contextItem: action, contextItemName: actionName, contextItemParams: params } = actionRequestContext
+  const { distFolder, packageName, contextActionLoader, contextItem: action, contextItemName: actionName, contextItemParams: params } = actionRequestContext
   // check if action is protected
   if (action?.annotations?.['require-adobe-auth']) {
     // http header keys are case-insensitive
@@ -347,15 +364,9 @@ async function invokeAction ({ actionRequestContext, logger }) {
   }
   // generate an activationID just like openwhisk
   process.env.__OW_ACTIVATION_ID = crypto.randomBytes(16).toString('hex')
-  const actionFolder = path.join(distFolder, packageName, actionName)
-  // TODO: find a better way to get the actual folder name without this magic string
-  const actionPath = `${actionFolder}-temp`
-  delete require.cache[actionPath]
   let actionFunction
-  // catch errors when loading the action function
   try {
-    // run the webpacked action function
-    actionFunction = require(actionPath)?.main
+    actionFunction = await contextActionLoader({ distFolder, packageName, actionName })
   } catch (e) {
     const message = `${actionName} action not found, or does not export main`
     logger.error(message)
@@ -467,9 +478,10 @@ function httpStatusResponse ({ actionResponse, res, logger }) {
  * @param {Response} res the http response
  * @param {object} actionConfig the action configuration
  * @param {string} distFolder the dist folder (contains built action source)
+ * @param {function} actionLoader function that will load an action
  * @returns {Response} the response
  */
-async function serveWebAction (req, res, actionConfig, distFolder) {
+async function serveWebAction (req, res, actionConfig, distFolder, actionLoader = defaultActionLoader) {
   const url = req.params[0]
   const [packageName, contextItemName, ...restofPath] = url.split('/')
   const action = actionConfig[packageName]?.actions[contextItemName]
@@ -498,7 +510,8 @@ async function serveWebAction (req, res, actionConfig, distFolder) {
     contextItemName,
     contextItemParams,
     actionConfig,
-    distFolder
+    distFolder,
+    contextActionLoader: actionLoader
   }
 
   if (invoker) {
@@ -589,6 +602,7 @@ function createActionParametersFromRequest ({ req, contextItem, actionInputs = {
 }
 
 module.exports = {
+  defaultActionLoader,
   runDev,
   interpolate,
   serveWebAction,
