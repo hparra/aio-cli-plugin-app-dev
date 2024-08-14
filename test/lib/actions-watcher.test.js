@@ -78,7 +78,9 @@ test('onChange handler', async () => {
       src: 'actions'
     }
   }
-  await actionsWatcher({ config })
+  const actionNameFromPath = () => ['an-action']
+
+  await actionsWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   // first onchange
@@ -103,7 +105,9 @@ test('onChange handler called multiple times', async () => {
       src: 'actions'
     }
   }
-  await actionsWatcher({ config })
+  const actionNameFromPath = () => ['an-action']
+
+  await actionsWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   // first onchange
@@ -136,7 +140,10 @@ test('onChange handler calls buildActions with filterActions', async () => {
       src: 'actions'
     }
   }
-  await actionsWatcher({ config })
+  const actionList = ['an-action']
+  const actionNameFromPath = () => actionList
+
+  await actionsWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
@@ -147,7 +154,7 @@ test('onChange handler calls buildActions with filterActions', async () => {
   await jest.runAllTimers()
 
   expect(buildActions).toHaveBeenCalledWith(
-    {}, ['action']
+    config, actionList, false /* skipCheck */, /* emptyDist */ false
   )
 })
 

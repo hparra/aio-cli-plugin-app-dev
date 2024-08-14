@@ -61,7 +61,7 @@ module.exports = async (watcherOptions) => {
  * @returns {Function} the onchange handler for the watcher
  */
 function createChangeHandler (watcherOptions) {
-  const { config, watcher } = watcherOptions
+  const { config, watcher, actionNameFromPath = getActionNameFromPath } = watcherOptions
 
   let buildInProgress = false
   let fileChanged = false
@@ -78,7 +78,7 @@ function createChangeHandler (watcherOptions) {
     buildInProgress = true
     try {
       watchLogger.info(`${filePath} has changed. Building action.`)
-      const filterActions = getActionNameFromPath(filePath, watcherOptions)
+      const filterActions = actionNameFromPath(filePath, watcherOptions)
       if (!filterActions.length) {
         watchLogger.debug('A non-action file was changed, no build was done.')
       } else {
