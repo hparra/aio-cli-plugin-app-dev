@@ -35,7 +35,7 @@ const watchLogger = coreLogger('watcher', { level: process.env.LOG_LEVEL, provid
  * @param {WatcherOptions} watcherOptions the options for the watcher
  * @returns {WatchReturnObject} the WatchReturnObject
  */
-module.exports = async (watcherOptions) => {
+async function createWatcher (watcherOptions) {
   const { config } = watcherOptions
 
   watchLogger.info(`watching action files at ${config.actions.src}...`)
@@ -121,4 +121,9 @@ function getActionNameFromPath (filePath, watcherOptions) {
     }
   })
   return actionNames
+}
+
+module.exports = {
+  getActionNameFromPath,
+  createWatcher
 }

@@ -25,7 +25,7 @@ const { buildActions } = require('@adobe/aio-lib-runtime')
 const BaseCommand = require('../../../BaseCommand')
 const { runDev } = require('../../../lib/run-dev')
 const { runInProcess } = require('../../../lib/app-helper')
-const actionsWatcher = require('../../../lib/actions-watcher')
+const { createWatcher } = require('../../../lib/actions-watcher')
 
 const APP_EVENT_PRE_APP_DEV = 'pre-app-dev'
 const APP_EVENT_POST_APP_DEV = 'post-app-dev'
@@ -207,7 +207,7 @@ class Dev extends BaseCommand {
     }
     this.log('press CTRL+C to terminate the dev environment')
 
-    const { watcherCleanup } = await actionsWatcher({ config, isLocal: true, inprocHook })
+    const { watcherCleanup } = await createWatcher({ config, isLocal: true, inprocHook })
     cleanup.add(() => watcherCleanup(), 'cleaning up action watcher...')
     cleanup.wait()
   }

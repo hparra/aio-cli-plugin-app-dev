@@ -24,7 +24,7 @@ const mockHelpers = require('../../../../src/lib/app-helper')
 const mockFS = require('fs-extra')
 const mockConfig = require('@adobe/aio-lib-core-config')
 const mockHttps = require('node:https')
-const actionsWatcher = require('../../../../src/lib/actions-watcher')
+const { createWatcher } = require('../../../../src/lib/actions-watcher')
 
 jest.mock('open', () => jest.fn())
 jest.mock('../../../../src/lib/run-dev')
@@ -82,8 +82,8 @@ beforeEach(() => {
   open.mockReset()
   ux.wait = jest.fn()
 
-  actionsWatcher.mockReset()
-  actionsWatcher.mockImplementation(() => ({
+  createWatcher.mockReset()
+  createWatcher.mockImplementation(() => ({
     watcherCleanup: jest.fn()
   }))
 })

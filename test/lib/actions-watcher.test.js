@@ -9,13 +9,12 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const actionsWatcher = require('../../src/lib/actions-watcher')
+const { createWatcher, getActionNameFromPath } = require('../../src/lib/actions-watcher')
 const chokidar = require('chokidar')
 const mockLogger = require('@adobe/aio-lib-core-logging')
 const util = require('node:util')
 const { buildActions } = require('@adobe/aio-lib-runtime')
 const sleep = util.promisify(setTimeout)
-const cloneDeep = require('lodash.clonedeep')
 
 jest.mock('chokidar')
 jest.mock('@adobe/aio-lib-runtime')
@@ -29,7 +28,8 @@ beforeEach(() => {
 })
 
 test('exports', () => {
-  expect(typeof actionsWatcher).toEqual('function')
+  expect(typeof createWatcher).toEqual('function')
+  expect(typeof getActionNameFromPath).toEqual('function')
 })
 
 test('run and cleanup', async () => {
@@ -50,7 +50,7 @@ test('run and cleanup', async () => {
       src: 'actions'
     }
   }
-  const { watcher, watcherCleanup } = await actionsWatcher({ config })
+  const { watcher, watcherCleanup } = await createWatcher({ config })
   expect(typeof watcher).toEqual('object')
   expect(typeof watcherCleanup).toEqual('function')
 
@@ -80,7 +80,7 @@ test('onChange handler', async () => {
   }
   const actionNameFromPath = () => ['an-action']
 
-  await actionsWatcher({ config, actionNameFromPath })
+  await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   // first onchange
@@ -107,7 +107,7 @@ test('onChange handler called multiple times', async () => {
   }
   const actionNameFromPath = () => ['an-action']
 
-  await actionsWatcher({ config, actionNameFromPath })
+  await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   // first onchange
@@ -142,7 +142,7 @@ test('file changed', async () => {
   }
   const actionNameFromPath = () => ['an-action']
 
-  await actionsWatcher({ config, actionNameFromPath })
+  await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   // first onchange
@@ -179,7 +179,7 @@ test('onChange handler calls buildActions with filterActions', async () => {
   const actionList = ['an-action']
   const actionNameFromPath = () => actionList
 
-  await actionsWatcher({ config, actionNameFromPath })
+  await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
@@ -214,7 +214,7 @@ test('on non-action file changed', async () => {
   const actionList = []
   const actionNameFromPath = () => actionList
 
-  await actionsWatcher({ config, actionNameFromPath })
+  await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
@@ -250,7 +250,7 @@ test('onChange handler calls buildActions but there is an exception', async () =
   const actionList = ['an-action']
   const actionNameFromPath = () => actionList
 
-  await actionsWatcher({ config, actionNameFromPath })
+  await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
@@ -263,4 +263,65 @@ test('onChange handler calls buildActions but there is an exception', async () =
   expect(buildActions).toHaveBeenCalledTimes(1)
   expect(consoleErrorMock).toHaveBeenCalledWith('an error')
   consoleErrorMock.mockRestore()
+})
+
+describe('getActionNameFromPath', () => {
+  test('not found', async () => {
+    const config = {
+      manifest: {
+        full: {
+          packages: {
+            myPackage: {
+              actions: {
+                a: {
+                  function: 'some/path/index.js'
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const actionNames = getActionNameFromPath('foo/bar/not/found.js', { config })
+    expect(actionNames.length).toEqual(0)
+  })
+
+  test('no actions (coverage)', async () => {
+    const config = {
+      manifest: {
+        full: {
+          packages: {
+            myPackage: {}
+          }
+        }
+      }
+    }
+
+    const actionNames = getActionNameFromPath('some/path/index.js', { config })
+    expect(actionNames.length).toEqual(0)
+  })
+
+  test('found', async () => {
+    const actionPath = 'some/path/index.js'
+    const config = {
+      manifest: {
+        full: {
+          packages: {
+            myPackage: {
+              actions: {
+                myAction: {
+                  function: actionPath
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const actionNames = getActionNameFromPath(actionPath, { config })
+    expect(actionNames.length).toEqual(1)
+    expect(actionNames[0]).toEqual('myAction')
+  })
 })
