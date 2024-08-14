@@ -24,11 +24,14 @@ const mockHelpers = require('../../../../src/lib/app-helper')
 const mockFS = require('fs-extra')
 const mockConfig = require('@adobe/aio-lib-core-config')
 const mockHttps = require('node:https')
+const actionsWatcher = require('../../../../src/lib/actions-watcher')
 
 jest.mock('open', () => jest.fn())
 jest.mock('../../../../src/lib/run-dev')
 jest.mock('../../../../src/lib/app-helper')
+jest.mock('../../../../src/lib/actions-watcher')
 jest.mock('fs-extra')
+jest.mock('chokidar')
 
 process.exit = jest.fn()
 process.on = jest.fn()
@@ -78,6 +81,11 @@ beforeEach(() => {
   }
   open.mockReset()
   ux.wait = jest.fn()
+
+  actionsWatcher.mockReset()
+  actionsWatcher.mockImplementation(() => ({
+    watcherCleanup: jest.fn()
+  }))
 })
 
 afterEach(async () => {
@@ -148,6 +156,9 @@ describe('run', () => {
   test('run, verbose flag, one extension', async () => {
     command.argv = ['--verbose']
     const appConfig = {
+      actions: {
+        src: 'actions'
+      },
       manifest: { full: { packages: {} } },
       hooks: {
       },

@@ -23,7 +23,6 @@ const rtLib = require('@adobe/aio-lib-runtime')
 const coreLogger = require('@adobe/aio-lib-core-logging')
 const { getReasonPhrase } = require('http-status-codes')
 const path = require('node:path')
-const { buildActions } = require('@adobe/aio-lib-runtime')
 
 const utils = require('./app-helper')
 const { SERVER_HOST, SERVER_DEFAULT_PORT, BUNDLER_DEFAULT_PORT, DEV_API_PREFIX, DEV_API_WEB_PREFIX, BUNDLE_OPTIONS, CHANGED_ASSETS_PRINT_LIMIT } = require('./constants')
@@ -478,7 +477,7 @@ function httpStatusResponse ({ actionResponse, res, logger }) {
  * @param {Response} res the http response
  * @param {object} actionConfig the action configuration
  * @param {string} distFolder the dist folder (contains built action source)
- * @param {function} actionLoader function that will load an action
+ * @param {Function} actionLoader function that will load an action
  * @returns {Response} the response
  */
 async function serveWebAction (req, res, actionConfig, distFolder, actionLoader = defaultActionLoader) {
