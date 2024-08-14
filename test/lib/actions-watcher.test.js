@@ -123,6 +123,42 @@ test('onChange handler called multiple times', async () => {
   expect(buildActions).toHaveBeenCalledTimes(1)
 })
 
+test('file changed', async () => {
+  let onChangeHandler = null
+  const mockWatcherInstance = {
+    on: jest.fn((event, handler) => {
+      if (event === 'change') {
+        onChangeHandler = handler
+      }
+    }),
+    close: jest.fn()
+  }
+  chokidar.watch.mockImplementation(() => mockWatcherInstance)
+
+  const config = {
+    actions: {
+      src: 'actions'
+    }
+  }
+  const actionNameFromPath = () => ['an-action']
+
+  await actionsWatcher({ config, actionNameFromPath })
+  expect(typeof onChangeHandler).toEqual('function')
+
+  // first onchange
+  buildActions.mockImplementation(async () => await sleep(2000))
+  await onChangeHandler('actions')
+
+  // second onchange
+  buildActions.mockImplementation(async () => {})
+  await onChangeHandler('actions')
+
+  await jest.runAllTimers()
+
+  expect(buildActions).toHaveBeenCalled()
+  expect(mockLogger.debug).toHaveBeenCalledWith('Code changed. Triggering build.')
+})
+
 test('onChange handler calls buildActions with filterActions', async () => {
   let onChangeHandler = null
   const mockWatcherInstance = {
@@ -158,33 +194,73 @@ test('onChange handler calls buildActions with filterActions', async () => {
   )
 })
 
-// test('on non-action file changed, skip build&deploy', async () => {
-//   const { application } = createAppConfig()
-//   const cloneApplication = cloneDeep(application)
-//   Object.entries(cloneApplication.manifest.full.packages).forEach(([, pkg]) => {
-//     if (pkg.actions) {
-//       delete pkg.actions
-//     }
-//   })
-//   let onChangeHandler = null
-//   const mockWatcherInstance = {
-//     on: jest.fn((event, handler) => {
-//       if (event === 'change') {
-//         onChangeHandler = handler
-//       }
-//     }),
-//     close: jest.fn()
-//   }
-//   chokidar.watch.mockImplementation(() => mockWatcherInstance)
+test('on non-action file changed', async () => {
+  let onChangeHandler = null
+  const mockWatcherInstance = {
+    on: jest.fn((event, handler) => {
+      if (event === 'change') {
+        onChangeHandler = handler
+      }
+    }),
+    close: jest.fn()
+  }
+  chokidar.watch.mockImplementation(() => mockWatcherInstance)
 
-//   const log = jest.fn()
-//   await actionsWatcher({ config: cloneApplication, log })
-//   expect(typeof onChangeHandler).toEqual('function')
+  const config = {
+    actions: {
+      src: 'actions'
+    }
+  }
+  const actionList = []
+  const actionNameFromPath = () => actionList
 
-//   buildAndDeploy.mockImplementation(async () => await sleep(2000))
-//   onChangeHandler('/myactions/utils.js')
+  await actionsWatcher({ config, actionNameFromPath })
+  expect(typeof onChangeHandler).toEqual('function')
 
-//   await jest.runAllTimers()
+  const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
 
-//   expect(buildAndDeploy).not.toHaveBeenCalled()
-// })
+  buildActions.mockImplementation(async () => await sleep(5000))
+  onChangeHandler(filePath)
+
+  await jest.runAllTimers()
+
+  expect(buildActions).not.toHaveBeenCalled()
+  expect(mockLogger.debug).toHaveBeenCalledWith('A non-action file was changed, no build was done.')
+})
+
+test('onChange handler calls buildActions but there is an exception', async () => {
+  const consoleErrorMock = jest.spyOn(console, 'error').mockImplementation()
+
+  let onChangeHandler = null
+  const mockWatcherInstance = {
+    on: jest.fn((event, handler) => {
+      if (event === 'change') {
+        onChangeHandler = handler
+      }
+    }),
+    close: jest.fn()
+  }
+  chokidar.watch.mockImplementation(() => mockWatcherInstance)
+
+  const config = {
+    actions: {
+      src: 'actions'
+    }
+  }
+  const actionList = ['an-action']
+  const actionNameFromPath = () => actionList
+
+  await actionsWatcher({ config, actionNameFromPath })
+  expect(typeof onChangeHandler).toEqual('function')
+
+  const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
+
+  buildActions.mockRejectedValue('an error')
+  onChangeHandler(filePath)
+
+  await jest.runAllTimers()
+
+  expect(buildActions).toHaveBeenCalledTimes(1)
+  expect(consoleErrorMock).toHaveBeenCalledWith('an error')
+  consoleErrorMock.mockRestore()
+})
