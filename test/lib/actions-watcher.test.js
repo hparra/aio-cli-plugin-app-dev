@@ -54,7 +54,7 @@ test('run and cleanup', async () => {
   expect(typeof watcher).toEqual('object')
   expect(typeof watcherCleanup).toEqual('function')
 
-  watcherCleanup()
+  await watcherCleanup()
 
   expect(mockWatcherInstance.on).toHaveBeenCalledWith('change', onChangeHandler)
   expect(chokidar.watch).toHaveBeenCalledWith(config.actions.src)
@@ -80,12 +80,15 @@ test('onChange handler', async () => {
   }
   const actionNameFromPath = () => ['an-action']
 
-  await createWatcher({ config, actionNameFromPath })
+  const { watcherCleanup } = await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   // first onchange
   await onChangeHandler('actions')
+
   expect(buildActions).toHaveBeenCalledTimes(1)
+
+  await watcherCleanup()
 })
 
 test('onChange handler called multiple times', async () => {
@@ -107,7 +110,7 @@ test('onChange handler called multiple times', async () => {
   }
   const actionNameFromPath = () => ['an-action']
 
-  await createWatcher({ config, actionNameFromPath })
+  const { watcherCleanup } = await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   // first onchange
@@ -119,8 +122,9 @@ test('onChange handler called multiple times', async () => {
   onChangeHandler('actions')
 
   await jest.runAllTimers()
-
   expect(buildActions).toHaveBeenCalledTimes(1)
+
+  await watcherCleanup()
 })
 
 test('file changed', async () => {
@@ -142,7 +146,7 @@ test('file changed', async () => {
   }
   const actionNameFromPath = () => ['an-action']
 
-  await createWatcher({ config, actionNameFromPath })
+  const { watcherCleanup } = await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   // first onchange
@@ -157,6 +161,8 @@ test('file changed', async () => {
 
   expect(buildActions).toHaveBeenCalled()
   expect(mockLogger.debug).toHaveBeenCalledWith('Code changed. Triggering build.')
+
+  await watcherCleanup()
 })
 
 test('onChange handler calls buildActions with filterActions', async () => {
@@ -179,7 +185,7 @@ test('onChange handler calls buildActions with filterActions', async () => {
   const actionList = ['an-action']
   const actionNameFromPath = () => actionList
 
-  await createWatcher({ config, actionNameFromPath })
+  const { watcherCleanup } = await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
@@ -192,6 +198,8 @@ test('onChange handler calls buildActions with filterActions', async () => {
   expect(buildActions).toHaveBeenCalledWith(
     config, actionList, false /* skipCheck */, /* emptyDist */ false
   )
+
+  await watcherCleanup()
 })
 
 test('on non-action file changed', async () => {
@@ -214,7 +222,7 @@ test('on non-action file changed', async () => {
   const actionList = []
   const actionNameFromPath = () => actionList
 
-  await createWatcher({ config, actionNameFromPath })
+  const { watcherCleanup } = await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
@@ -226,6 +234,8 @@ test('on non-action file changed', async () => {
 
   expect(buildActions).not.toHaveBeenCalled()
   expect(mockLogger.debug).toHaveBeenCalledWith('A non-action file was changed, no build was done.')
+
+  await watcherCleanup()
 })
 
 test('onChange handler calls buildActions but there is an exception', async () => {
@@ -250,7 +260,7 @@ test('onChange handler calls buildActions but there is an exception', async () =
   const actionList = ['an-action']
   const actionNameFromPath = () => actionList
 
-  await createWatcher({ config, actionNameFromPath })
+  const { watcherCleanup } = await createWatcher({ config, actionNameFromPath })
   expect(typeof onChangeHandler).toEqual('function')
 
   const filePath = process.platform === 'win32' ? '\\myactions\\action.js' : '/myactions/action.js'
@@ -263,6 +273,8 @@ test('onChange handler calls buildActions but there is an exception', async () =
   expect(buildActions).toHaveBeenCalledTimes(1)
   expect(consoleErrorMock).toHaveBeenCalledWith('an error')
   consoleErrorMock.mockRestore()
+
+  await watcherCleanup()
 })
 
 describe('getActionNameFromPath', () => {
