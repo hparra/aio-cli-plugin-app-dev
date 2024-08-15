@@ -40,8 +40,9 @@ async function createWatcher (watcherOptions) {
 
   watchLogger.info(`watching action files at ${config.actions.src}...`)
   const watcher = chokidar.watch(config.actions.src)
+  const onChangeHandler = createChangeHandler({ ...watcherOptions, watcher })
 
-  watcher.on('change', createChangeHandler({ ...watcherOptions, watcher }))
+  watcher.on('change', onChangeHandler)
 
   const watcherCleanup = async () => {
     watchLogger.debug('stopping action watcher...')
@@ -49,13 +50,39 @@ async function createWatcher (watcherOptions) {
   }
 
   return {
+    onChangeHandler,
     watcher,
     watcherCleanup
   }
 }
 
 /**
- * Create the onchange handler for the watcher.
+ * Simple queue
+ */
+class Queue {
+  constructor () {
+    this.queue = []
+  }
+
+  get items () {
+    return this.queue
+  }
+
+  get length () {
+    return this.queue.length
+  }
+
+  enqueue (element) {
+    this.queue.push(element)
+  }
+
+  dequeue () {
+    return this.queue.shift()
+  }
+}
+
+/**
+ * Create the onChange handler for the watcher.
  *
  * @param {WatcherOptions} watcherOptions the options for the watcher
  * @returns {Function} the onchange handler for the watcher
@@ -64,18 +91,9 @@ function createChangeHandler (watcherOptions) {
   const { config, watcher, actionNameFromPath = getActionNameFromPath } = watcherOptions
 
   let buildInProgress = false
-  let fileChanged = false
-  let undeployedFile = ''
+  const queue = new Queue()
 
-  return async (filePath) => {
-    watchLogger.debug('Code change triggered...')
-    if (buildInProgress) {
-      watchLogger.debug(`${filePath} has changed. Build in progress. This change will be built after completion of current build.`)
-      undeployedFile = filePath
-      fileChanged = true
-      return
-    }
-    buildInProgress = true
+  const processChange = async (filePath) => {
     try {
       watchLogger.info(`${filePath} has changed. Building action.`)
       const filterActions = actionNameFromPath(filePath, watcherOptions)
@@ -90,11 +108,26 @@ function createChangeHandler (watcherOptions) {
       console.error(err)
       await watcher.close()
     }
-    if (fileChanged) {
-      watchLogger.debug('Code changed. Triggering build.')
-      fileChanged = buildInProgress = false
-      await createChangeHandler(watcherOptions)(undeployedFile)
+  }
+
+  return async (filePath) => {
+    if (buildInProgress) {
+      watchLogger.debug(`${filePath} has changed. A build is in progress. This change will be built after completion of current build.`)
+      queue.enqueue(filePath)
+      return
     }
+
+    buildInProgress = true
+
+    await processChange(filePath)
+
+    // process the rest of the queue, if any
+    let fileToProcess = queue.dequeue()
+    while (fileToProcess) {
+      await processChange(fileToProcess)
+      fileToProcess = queue.dequeue()
+    }
+
     buildInProgress = false
   }
 }
@@ -125,5 +158,6 @@ function getActionNameFromPath (filePath, watcherOptions) {
 
 module.exports = {
   getActionNameFromPath,
-  createWatcher
+  createWatcher,
+  Queue
 }
