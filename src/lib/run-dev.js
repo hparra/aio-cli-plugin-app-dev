@@ -544,7 +544,11 @@ function createActionParametersFromRequest ({ req, contextItem, actionInputs = {
   // note we clone action so if env vars change between runs it is reflected - jm
   const action = { inputs: {} }
   Object.entries(actionInputs).forEach(([key, value]) => {
-    action.inputs[key] = interpolate(value, process.env)
+    if (typeof value === 'string') {
+      action.inputs[key] = interpolate(value, process.env)
+    } else {
+      action.inputs[key] = value
+    }
   })
 
   const params = {
