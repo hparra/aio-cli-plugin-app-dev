@@ -352,7 +352,7 @@ describe('createActionParametersFromRequest', () => {
         someBoolean: true,
         someNumber: 42,
         someObject: { hello: 'world' },
-        someString: 'hello world',
+        someString: 'hello world'
       }
     }
     const actionName = 'a'
@@ -376,7 +376,7 @@ describe('createActionParametersFromRequest', () => {
       someBoolean: true,
       someNumber: 42,
       someObject: { hello: 'world' },
-      someString: 'hello world',
+      someString: 'hello world'
     })
   })
 })
