@@ -32,7 +32,7 @@ async function addNumbers (params) {
     const sum = nums.reduce((accum, num) => accum + parseInt(num.trim(), 10), 0)
     return {
       payload: sum, // to be passed to other actions in the sequence as part of params
-      body: { 
+      body: {
         payload: sum // sent to the http client for a stand-alone call
       }
     }

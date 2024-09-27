@@ -10,23 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-/**
- * The main function.
- *
- * @param {object} params the parameters
- * @returns {object} runtime response object
- */
-async function main (params) {
-  if (params.DUMP_PARAMS) {
-    console.log('params', JSON.stringify(params, null, 2))
-  }
+exports.main = function () {
+  const message = 'Hello Simple Action'
+  console.log(message)
 
-  const response = {
-    statusCode: 200,
-    body: {
-      params
-    }
+  return {
+    headers: {
+      'X-Awesome': true
+    },
+    body: message
   }
-  return response
 }
-exports.main = main

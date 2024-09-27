@@ -7,22 +7,19 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Codecov Coverage](https://img.shields.io/codecov/c/github/adobe/aio-cli-plugin-app-dev/master.svg?style=flat-square)](https://codecov.io/gh/adobe/aio-cli-plugin-app-dev/)
 
-This command is a new way of looking at local development.
-This uses the approach of a simulator, rather than an emulator.
-
-<!-- toc -->
-* [aio-cli-plugin-app-dev](#aio-cli-plugin-app-dev)
-<!-- tocstop -->
+- This command is a new way of looking at local development. This uses the approach of a simulator, rather than an emulator.
+- Supports ESM, and TypeScript actions.
+- [App Builder Debugging Docs](https://developer.adobe.com/app-builder/docs/guides/development/#debugging)
 
 ## Commands
 <!-- commands -->
-* [`aio app dev`](#aio-app-dev)
+- [`aio app dev`](#aio-app-dev)
 
 ## `aio app dev`
 
 Run your App Builder app locally
 
-```
+```sh
 USAGE
   $ aio app dev [-v] [--version] [-o] [-e <value>]
 
@@ -47,6 +44,58 @@ By default the hostname will be `localhost` and the default port is `9080`. You 
 2. `SERVER_DEFAULT_PORT`
 
 The command will try to use the default port, if it is not available it will find an open port to use instead.
+
+## Visual Studio Code Webpack Debugging Support (Source Maps)
+
+To enable step-by-step debugging in Visual Studio Code for your webpacked code, you will have to add source map support by adding a [custom webpack config](https://developer.adobe.com/app-builder/docs/guides/configuration/webpack-configuration/).
+
+In the root of your project, add a `webpack-config.js` file:
+
+```javascript
+module.exports = {
+  devtool: 'inline-source-map'
+}
+```
+
+## TypeScript Support
+
+Install these node modules in your app:
+`npm install --save-dev ts-loader typescript`
+
+In the root of your project, add a `webpack-config.js` file:
+
+```javascript
+module.exports = {
+  devtool: 'inline-source-map',
+  module: {
+    rules: [
+      {
+        // includes, excludes are in tsconfig.json
+        test: /\.ts?$/,
+        exclude: /node_modules/,
+        use: 'ts-loader'
+      }
+    ]
+  }
+}
+```
+
+In the root of your project, add a `tsconfig.json` file:
+
+```json
+{
+  "exclude": ["node_modules", "dist"],
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "ES6",
+    "sourceMap": true
+  }
+}
+```
+
+There is a Visual Studio Code issue with TypeScript and inspecting variables by hovering your mouse over them:
+
+<https://github.com/microsoft/vscode/issues/221503>
 
 ## Contributing
 

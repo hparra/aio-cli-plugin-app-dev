@@ -63,6 +63,7 @@ const RAW_CONTENT_TYPES = ['application/octet-stream', 'multipart/form-data']
 async function runDev (runOptions, config, _inprocHookRunner) {
   const bundleOptions = cloneDeep(BUNDLE_OPTIONS)
   const devConfig = cloneDeep(config)
+  const distFolder = devConfig.actions.dist
 
   const serveLogger = coreLogger('serve', { level: process.env.LOG_LEVEL, provider: 'winston' })
   serveLogger.debug('config.manifest is', JSON.stringify(devConfig.manifest.full.packages, null, 2))
@@ -169,7 +170,7 @@ async function runDev (runOptions, config, _inprocHookRunner) {
   }
   app.use(express.text({ ...middlewareOptions, type: 'text/plain' }))
   app.use(express.json({ ...middlewareOptions, strict: false }))
-  app.use(express.urlencoded(middlewareOptions))
+  app.use(express.urlencoded({ ...middlewareOptions, extended: true }))
   app.use(express.raw({ ...middlewareOptions, type: RAW_CONTENT_TYPES }))
 
   if (hasFrontend) {
@@ -178,8 +179,8 @@ async function runDev (runOptions, config, _inprocHookRunner) {
   }
 
   // serveAction needs to clear cache for each request, so we get live changes
-  app.all(`/${DEV_API_WEB_PREFIX}/*`, (req, res) => serveWebAction(req, res, actionConfig))
-  app.all(`/${DEV_API_PREFIX}/*`, (req, res) => serveNonWebAction(req, res, actionConfig))
+  app.all(`/${DEV_API_WEB_PREFIX}/*`, (req, res) => serveWebAction(req, res, actionConfig, distFolder))
+  app.all(`/${DEV_API_PREFIX}/*`, (req, res) => serveNonWebAction(req, res, actionConfig, distFolder))
 
   const server = https.createServer(serverOptions, app)
   server.listen(serverPort, SERVER_HOST, () => {
@@ -254,9 +255,10 @@ function isRawWebAction (action) {
  * @param {Request} req the http request
  * @param {Response} res the http response
  * @param {object} actionConfig the action configuration
+ * @param {string} distFolder the dist folder (contains built action source)
  * @returns {void}
  */
-async function serveNonWebAction (req, res, actionConfig) {
+async function serveNonWebAction (req, res, actionConfig, distFolder) {
   const url = req.params[0]
   const [, actionName] = url.split('/')
   const logger = coreLogger(`serveNonWebAction ${actionName}`, { level: process.env.LOG_LEVEL, provider: 'winston' })
@@ -274,7 +276,7 @@ async function serveNonWebAction (req, res, actionConfig) {
  * @returns {ActionResponse} the action response object
  */
 async function invokeSequence ({ actionRequestContext, logger }) {
-  const { contextItem: sequence, contextItemParams: sequenceParams, actionConfig, packageName } = actionRequestContext
+  const { distFolder, contextActionLoader, contextItem: sequence, contextItemParams: sequenceParams, actionConfig, packageName } = actionRequestContext
   const actions = sequence?.actions?.split(',') ?? []
   logger.info('actions to call', sequence?.actions)
 
@@ -294,7 +296,7 @@ async function invokeSequence ({ actionRequestContext, logger }) {
           ...lastActionResponse
         }
 
-    const context = { contextItem: action, actionName, contextItemParams: actionParams }
+    const context = { distFolder, contextActionLoader, packageName, contextItem: action, contextItemName: actionName, contextItemParams: actionParams }
     if (action) {
       logger.info('calling action', actionName)
       lastActionResponse = await invokeAction({ actionRequestContext: context, logger })
@@ -315,6 +317,22 @@ async function invokeSequence ({ actionRequestContext, logger }) {
 }
 
 /**
+ * Load the action function based on the context.
+ *
+ * @param {object} params the parameters
+ * @param {string} params.distFolder the dist folder
+ * @param {string} params.packageName the package name
+ * @param {string} params.actionName the action name
+ * @returns {object} the action function
+ */
+async function defaultActionLoader ({ distFolder, packageName, actionName }) {
+  const actionFolder = path.join(distFolder, packageName, actionName)
+  const actionPath = `${actionFolder}-temp/index.js`
+  delete require.cache[actionPath]
+  return require(actionPath)?.main
+}
+
+/**
  * Invoke an action.
  *
  * @param {object} params the parameters
@@ -323,7 +341,7 @@ async function invokeSequence ({ actionRequestContext, logger }) {
  * @returns {ActionResponse} the action response
  */
 async function invokeAction ({ actionRequestContext, logger }) {
-  const { contextItem: action, contextItemName: actionName, contextItemParams: params } = actionRequestContext
+  const { distFolder, packageName, contextActionLoader, contextItem: action, contextItemName: actionName, contextItemParams: params } = actionRequestContext
   // check if action is protected
   if (action?.annotations?.['require-adobe-auth']) {
     // http header keys are case-insensitive
@@ -345,12 +363,10 @@ async function invokeAction ({ actionRequestContext, logger }) {
   }
   // generate an activationID just like openwhisk
   process.env.__OW_ACTIVATION_ID = crypto.randomBytes(16).toString('hex')
-  delete require.cache[action.function]
 
   let actionFunction
-  // catch errors when loading the action function
   try {
-    actionFunction = require(action.function)?.main
+    actionFunction = await contextActionLoader({ distFolder, packageName, actionName })
   } catch (e) {
     const message = `${actionName} action not found, or does not export main`
     logger.error(message)
@@ -462,9 +478,11 @@ function httpStatusResponse ({ actionResponse, res, logger }) {
  * @param {Request} req the http request
  * @param {Response} res the http response
  * @param {object} actionConfig the action configuration
+ * @param {string} distFolder the dist folder (contains built action source)
+ * @param {Function} actionLoader function that will load an action
  * @returns {Response} the response
  */
-async function serveWebAction (req, res, actionConfig) {
+async function serveWebAction (req, res, actionConfig, distFolder, actionLoader = defaultActionLoader) {
   const url = req.params[0]
   const [packageName, contextItemName, ...restofPath] = url.split('/')
   const action = actionConfig[packageName]?.actions[contextItemName]
@@ -492,7 +510,9 @@ async function serveWebAction (req, res, actionConfig) {
     packageName,
     contextItemName,
     contextItemParams,
-    actionConfig
+    actionConfig,
+    distFolder,
+    contextActionLoader: actionLoader
   }
 
   if (invoker) {
@@ -591,6 +611,7 @@ function createActionParametersFromRequest ({ req, contextItem, actionInputs = {
 }
 
 module.exports = {
+  defaultActionLoader,
   runDev,
   interpolate,
   serveWebAction,

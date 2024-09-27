@@ -20,10 +20,12 @@ const chalk = require('chalk')
 const { Flags, ux } = require('@oclif/core')
 const coreConfig = require('@adobe/aio-lib-core-config')
 const aioLogger = require('@adobe/aio-lib-core-logging')('@adobe/aio-cli-plugin-app-dev:index', { level: process.env.LOG_LEVEL, provider: 'winston' })
+const { buildActions } = require('@adobe/aio-lib-runtime')
 
 const BaseCommand = require('../../../BaseCommand')
 const { runDev } = require('../../../lib/run-dev')
 const { runInProcess } = require('../../../lib/app-helper')
+const { createWatcher } = require('../../../lib/actions-watcher')
 
 const APP_EVENT_PRE_APP_DEV = 'pre-app-dev'
 const APP_EVENT_POST_APP_DEV = 'post-app-dev'
@@ -136,6 +138,11 @@ class Dev extends BaseCommand {
     }
   }
 
+  async runAppBuild (extensionConfig) {
+    this.log('Building the app...')
+    await buildActions(extensionConfig, null /* filterActions[] */, false /* skipCheck */)
+  }
+
   async runOneExtensionPoint (name, config, flags) {
     aioLogger.debug('runOneExtensionPoint called with', name, flags)
 
@@ -179,9 +186,11 @@ class Dev extends BaseCommand {
 
     const inprocHook = this.config.runHook.bind(this.config)
     const cleanup = new Cleanup()
+
+    await this.runAppBuild(config)
     const { frontendUrl, actionUrls, serverCleanup } = await runDev(runOptions, config, inprocHook)
+
     cleanup.add(() => serverCleanup(), 'cleaning up runDev...')
-    cleanup.wait()
 
     // fire post hook
     try {
@@ -197,6 +206,10 @@ class Dev extends BaseCommand {
       this.displayActionUrls(actionUrls)
     }
     this.log('press CTRL+C to terminate the dev environment')
+
+    const { watcherCleanup } = await createWatcher({ config, isLocal: true, inprocHook })
+    cleanup.add(() => watcherCleanup(), 'cleaning up action watcher...')
+    cleanup.wait()
   }
 
   async getOrGenerateCertificates ({ pubCertPath, privateKeyPath, devKeysDir, devKeysConfigKey, maxWaitTimeSeconds = 20 }) {
