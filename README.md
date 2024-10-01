@@ -13,13 +13,13 @@
 
 ## Commands
 <!-- commands -->
-- [`aio app dev`](#aio-app-dev)
+* [`aio app dev`](#aio-app-dev)
 
 ## `aio app dev`
 
 Run your App Builder app locally
 
-```sh
+```
 USAGE
   $ aio app dev [-v] [--version] [-o] [-e <value>]
 
@@ -33,7 +33,7 @@ DESCRIPTION
   Run your App Builder app locally
 ```
 
-_See code: [src/commands/app/dev/index.js](https://github.com/adobe/aio-cli-plugin-app-dev/blob/1.1.2/src/commands/app/dev/index.js)_
+_See code: [src/commands/app/dev/index.js](https://github.com/adobe/aio-cli-plugin-app-dev/blob/2.0.0/src/commands/app/dev/index.js)_
 <!-- commandsstop -->
 
 ## Overriding the hostname and port
